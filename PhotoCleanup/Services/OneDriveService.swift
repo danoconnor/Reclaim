@@ -112,13 +112,26 @@ class OneDriveService: ObservableObject {
     }
     
     private func fetchFilesFromGraphAPI(folderPath: String, token: String) async throws -> [OneDriveFile] {
+        return try await fetchFilesRecursively(folderPath: folderPath, token: token, visitedPaths: [])
+    }
+    
+    private func fetchFilesRecursively(folderPath: String, token: String, visitedPaths: Set<String>, depth: Int = 0) async throws -> [OneDriveFile] {
+        // Safety: Limit recursion depth to prevent infinite loops
+        guard depth < 50 else { return [] }
+        
+        // Prevent circular references
+        guard !visitedPaths.contains(folderPath) else { return [] }
+        
+        var updatedVisitedPaths = visitedPaths
+        updatedVisitedPaths.insert(folderPath)
+        
         var allFiles: [OneDriveFile] = []
 
         // Percent-encode each path segment to handle spaces and unicode
         let encodedPath = folderPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? folderPath
 
-        // Use $select to request only fields we need and include the download URL and image facet
-        var endpoint = "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children?$select=id,name,size,createdDateTime,lastModifiedDateTime,file,image,@microsoft.graph.downloadUrl&$top=200"
+        // Use $select to request fields we need including the folder facet
+        var endpoint = "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children?$select=id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,@microsoft.graph.downloadUrl"
 
         struct GraphResponse: Codable {
             let value: [GraphFile]
@@ -137,11 +150,12 @@ class OneDriveService: ObservableObject {
             let createdDateTime: String?
             let lastModifiedDateTime: String?
             let file: FileInfo?
+            let folder: FolderFacet?
             let image: ImageFacet?
             let downloadUrl: String?
 
             private enum CodingKeys: String, CodingKey {
-                case id, name, size, createdDateTime, lastModifiedDateTime, file, image
+                case id, name, size, createdDateTime, lastModifiedDateTime, file, folder, image
                 case downloadUrl = "@microsoft.graph.downloadUrl"
             }
 
@@ -155,6 +169,10 @@ class OneDriveService: ObservableObject {
                 }
             }
 
+            struct FolderFacet: Codable {
+                let childCount: Int?
+            }
+
             struct ImageFacet: Codable {
                 let width: Int?
                 let height: Int?
@@ -163,7 +181,9 @@ class OneDriveService: ObservableObject {
 
         let decoder = JSONDecoder()
         let iso = ISO8601DateFormatter()
+        var subdirectories: [String] = []
 
+        // Paginate through all items in the current directory
         while true {
             guard let url = URL(string: endpoint) else { throw OneDriveError.invalidURL }
             var request = URLRequest(url: url)
@@ -182,13 +202,21 @@ class OneDriveService: ObservableObject {
 
             let responseObj = try decoder.decode(GraphResponse.self, from: data)
 
-            let pageFiles = responseObj.value.compactMap { graphFile -> OneDriveFile? in
-                // Prefer server-side image facet; fall back to extension check
+            // Process items: collect image files and identify subdirectories
+            for graphFile in responseObj.value {
+                // Check if this is a folder
+                if graphFile.folder != nil {
+                    let subfolderPath = "\(folderPath)/\(graphFile.name)"
+                    subdirectories.append(subfolderPath)
+                    continue
+                }
+                
+                // Process files: check if it's an image
                 let isImageByFacet = graphFile.image != nil
                 let imageExtensions = ["jpg", "jpeg", "png", "heic", "heif", "gif", "bmp", "tiff"]
                 let fileExtension = (graphFile.name as NSString).pathExtension.lowercased()
                 let isImageByExtension = imageExtensions.contains(fileExtension)
-                guard isImageByFacet || isImageByExtension else { return nil }
+                guard isImageByFacet || isImageByExtension else { continue }
 
                 let created = graphFile.createdDateTime.flatMap { iso.date(from: $0) }
                 let modified = graphFile.lastModifiedDateTime.flatMap { iso.date(from: $0) }
@@ -201,7 +229,7 @@ class OneDriveService: ObservableObject {
                 else if let v = graphFile.file?.hashes?.sha1Hash { hashValue = v; hashAlgorithm = .sha1 }
                 else { hashValue = nil; hashAlgorithm = nil }
 
-                return OneDriveFile(
+                let file = OneDriveFile(
                     id: graphFile.id,
                     name: graphFile.name,
                     size: graphFile.size,
@@ -211,9 +239,8 @@ class OneDriveService: ObservableObject {
                     hashValue: hashValue,
                     hashAlgorithm: hashAlgorithm
                 )
+                allFiles.append(file)
             }
-
-            allFiles.append(contentsOf: pageFiles)
 
             if let next = responseObj.nextLink {
                 endpoint = next
@@ -221,6 +248,17 @@ class OneDriveService: ObservableObject {
             } else {
                 break
             }
+        }
+
+        // Recursively process subdirectories
+        for subfolderPath in subdirectories {
+            let subFiles = try await fetchFilesRecursively(
+                folderPath: subfolderPath,
+                token: token,
+                visitedPaths: updatedVisitedPaths,
+                depth: depth + 1
+            )
+            allFiles.append(contentsOf: subFiles)
         }
 
         return allFiles
@@ -342,4 +380,3 @@ extension OneDriveService {
         self.isAuthenticated = true
     }
 }
-

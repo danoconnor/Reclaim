@@ -26,7 +26,7 @@ class ComparisonService: ObservableObject {
     
     // MARK: - Comparison
     
-    func comparePhotos() async throws {
+    func comparePhotos(oneDriveFolderPath: String = "/Pictures") async throws {
         isComparing = true
         comparisonProgress = 0.0
         errorMessage = nil
@@ -37,7 +37,7 @@ class ComparisonService: ObservableObject {
             comparisonProgress = 0.2
             
             // Fetch photos from OneDrive
-            try await oneDriveService.fetchPhotosFromOneDrive()
+            try await oneDriveService.fetchPhotosFromOneDrive(folderPath: oneDriveFolderPath)
             let oneDriveFiles = oneDriveService.oneDriveFiles
             comparisonProgress = 0.4
             

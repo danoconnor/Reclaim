@@ -15,6 +15,8 @@ struct MainView: View {
     @StateObject private var comparisonService: ComparisonService
     @StateObject private var deletionService: DeletionService
     
+    @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Pictures"
+    
     @State private var showingPhotoReview = false
     @State private var showingSettings = false
     @State private var showingDeleteConfirmation = false
@@ -282,7 +284,7 @@ struct MainView: View {
     
     private func startComparison() async {
         do {
-            try await comparisonService.comparePhotos()
+            try await comparisonService.comparePhotos(oneDriveFolderPath: oneDriveFolderPath)
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -295,7 +297,7 @@ struct MainView: View {
             _ = try await deletionService.deleteBatch(photos)
             
             // Refresh comparison after deletion
-            try await comparisonService.comparePhotos()
+            try await comparisonService.comparePhotos(oneDriveFolderPath: oneDriveFolderPath)
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

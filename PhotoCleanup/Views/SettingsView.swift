@@ -13,7 +13,7 @@ struct SettingsView: View {
     @ObservedObject var photoLibraryService: PhotoLibraryService
     @ObservedObject var oneDriveService: OneDriveService
     
-    @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Photos"
+    @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Pictures"
     @AppStorage("matchingSensitivity") private var matchingSensitivity = MatchingSensitivity.medium.rawValue
     @AppStorage("requireConfirmation") private var requireConfirmation = true
     @AppStorage("enableDryRun") private var enableDryRun = false
@@ -55,7 +55,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Folder Path")
                         Spacer()
-                        TextField("/Photos", text: $oneDriveFolderPath)
+                        TextField("/Pictures", text: $oneDriveFolderPath)
                             .multilineTextAlignment(.trailing)
                             .foregroundColor(.secondary)
                     }

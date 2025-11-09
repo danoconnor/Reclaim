@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bucket
+   uuid = "1951C121-153D-49F1-8FCA-DECCF052D219"
+   type = "1"
+   version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F7B28CA1-928D-4924-9E85-B41BB19F5906"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "29"
+            endingLineNumber = "29"
+            landmarkName = "init()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "49DB00E8-28E1-41C5-B258-49F05B52C3D7"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "41"
+            endingLineNumber = "41"
+            landmarkName = "authenticate()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "BA12FC45-4332-4B23-9FEB-BFFA69D8A80E"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "42"
+            endingLineNumber = "42"
+            landmarkName = "authenticate()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "7C436625-1675-492B-97AF-69D94C813605"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "330"
+            endingLineNumber = "330"
+            landmarkName = "acquireInteractiveToken(app:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "254B9024-9BA2-4EEE-B8EB-27719CD4308E"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "331"
+            endingLineNumber = "331"
+            landmarkName = "acquireInteractiveToken(app:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "254B9024-9BA2-4EEE-B8EB-27719CD4308E - e039731aa7a38491"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 @Sendable (Swift.Optional&lt;__C.MSALResult&gt;, Swift.Optional&lt;Swift.Error&gt;) -&gt; () in closure #4 (Swift.CheckedContinuation&lt;__C.MSALResult, Swift.Error&gt;) -&gt; () in PhotoCleanup.OneDriveService.acquireInteractiveToken(app: __C.MSALPublicClientApplication) async throws -&gt; __C.MSALResult"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "331"
+                  endingLineNumber = "331">
+               </Location>
+               <Location
+                  uuid = "254B9024-9BA2-4EEE-B8EB-27719CD4308E - e039731aa7a38491"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 @Sendable (Swift.Optional&lt;__C.MSALResult&gt;, Swift.Optional&lt;Swift.Error&gt;) -&gt; () in closure #4 (Swift.CheckedContinuation&lt;__C.MSALResult, Swift.Error&gt;) -&gt; () in PhotoCleanup.OneDriveService.acquireInteractiveToken(app: __C.MSALPublicClientApplication) async throws -&gt; __C.MSALResult"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "331"
+                  endingLineNumber = "331">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "92CAA2CB-C1EB-4E11-B9A6-DAD1D7EF4A91"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "168"
+            endingLineNumber = "168"
+            landmarkName = "fetchFilesFromGraphAPI(folderPath:token:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "92CAA2CB-C1EB-4E11-B9A6-DAD1D7EF4A91 - 207aae67ea16f691"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesFromGraphAPI(folderPath: Swift.String, token: Swift.String) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "168"
+                  endingLineNumber = "168">
+               </Location>
+               <Location
+                  uuid = "92CAA2CB-C1EB-4E11-B9A6-DAD1D7EF4A91 - d95fba19dc6b0aaf"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesFromGraphAPI(folderPath: Swift.String, token: Swift.String) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "168"
+                  endingLineNumber = "168">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
+</Bucket>

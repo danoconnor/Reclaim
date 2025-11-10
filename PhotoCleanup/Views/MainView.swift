@@ -16,6 +16,9 @@ struct MainView: View {
     @StateObject private var deletionService: DeletionService
     
     @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Pictures"
+    @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
+    @AppStorage("customStartDate") private var customStartDateTimestamp: Double = 0
+    @AppStorage("customEndDate") private var customEndDateTimestamp: Double = Date().timeIntervalSince1970
     
     @State private var showingPhotoReview = false
     @State private var showingSettings = false
@@ -42,6 +45,12 @@ struct MainView: View {
                 statusSection
                 
                 Divider()
+                
+                // Date Filter Indicator
+                if isDateFilterActive {
+                    dateFilterIndicator
+                    Divider()
+                }
                 
                 // Statistics Section
                 if !comparisonService.syncStatuses.isEmpty {
@@ -133,6 +142,27 @@ struct MainView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Date Filter Indicator
+    
+    private var dateFilterIndicator: some View {
+        HStack {
+            Image(systemName: "calendar.badge.clock")
+                .foregroundColor(.blue)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Date Filter Active")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(dateFilterDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(10)
     }
     
     // MARK: - Statistics Section
@@ -263,6 +293,30 @@ struct MainView: View {
         photoLibraryService.authorizationStatus == .authorized && oneDriveService.isAuthenticated
     }
     
+    private var isDateFilterActive: Bool {
+        dateRangeFilter != DateRangeFilter.allTime.rawValue
+    }
+    
+    private var dateFilterDescription: String {
+        let filter = DateRangeFilter(rawValue: dateRangeFilter) ?? .allTime
+        switch filter {
+        case .allTime:
+            return "All photos"
+        case .last30Days:
+            return "Last 30 days"
+        case .last6Months:
+            return "Last 6 months"
+        case .lastYear:
+            return "Last year"
+        case .custom:
+            let startDate = Date(timeIntervalSince1970: customStartDateTimestamp)
+            let endDate = Date(timeIntervalSince1970: customEndDateTimestamp)
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+        }
+    }
+    
     // MARK: - Actions
     
     private func requestPhotoLibraryAccess() async {
@@ -284,7 +338,17 @@ struct MainView: View {
     
     private func startComparison() async {
         do {
-            try await comparisonService.comparePhotos(oneDriveFolderPath: oneDriveFolderPath)
+            // Get date range based on filter setting
+            let filter = DateRangeFilter(rawValue: dateRangeFilter) ?? .allTime
+            let customStart = customStartDateTimestamp > 0 ? Date(timeIntervalSince1970: customStartDateTimestamp) : nil
+            let customEnd = customEndDateTimestamp > 0 ? Date(timeIntervalSince1970: customEndDateTimestamp) : nil
+            let (startDate, endDate) = filter.getDateRange(customStart: customStart, customEnd: customEnd)
+            
+            try await comparisonService.comparePhotos(
+                oneDriveFolderPath: oneDriveFolderPath,
+                startDate: startDate,
+                endDate: endDate
+            )
         } catch {
             errorMessage = error.localizedDescription
             showingError = true
@@ -296,8 +360,17 @@ struct MainView: View {
             let photos = comparisonService.getDeletablePhotos()
             _ = try await deletionService.deleteBatch(photos)
             
-            // Refresh comparison after deletion
-            try await comparisonService.comparePhotos(oneDriveFolderPath: oneDriveFolderPath)
+            // Refresh comparison after deletion with same date filter
+            let filter = DateRangeFilter(rawValue: dateRangeFilter) ?? .allTime
+            let customStart = customStartDateTimestamp > 0 ? Date(timeIntervalSince1970: customStartDateTimestamp) : nil
+            let customEnd = customEndDateTimestamp > 0 ? Date(timeIntervalSince1970: customEndDateTimestamp) : nil
+            let (startDate, endDate) = filter.getDateRange(customStart: customStart, customEnd: customEnd)
+            
+            try await comparisonService.comparePhotos(
+                oneDriveFolderPath: oneDriveFolderPath,
+                startDate: startDate,
+                endDate: endDate
+            )
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

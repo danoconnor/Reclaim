@@ -30,7 +30,7 @@ class PhotoLibraryService: ObservableObject {
     
     // MARK: - Fetch Photos
     
-    func fetchAllPhotos() async throws {
+    func fetchAllPhotos(startDate: Date? = nil, endDate: Date? = nil) async throws {
         guard authorizationStatus == .authorized || authorizationStatus == .limited else {
             throw PhotoLibraryError.notAuthorized
         }
@@ -40,6 +40,15 @@ class PhotoLibraryService: ObservableObject {
         
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        
+        // Apply date range predicate if provided
+        if let start = startDate, let end = endDate {
+            fetchOptions.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate <= %@", start as NSDate, end as NSDate)
+        } else if let start = startDate {
+            fetchOptions.predicate = NSPredicate(format: "creationDate >= %@", start as NSDate)
+        } else if let end = endDate {
+            fetchOptions.predicate = NSPredicate(format: "creationDate <= %@", end as NSDate)
+        }
 
         let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
 
@@ -52,8 +61,8 @@ class PhotoLibraryService: ObservableObject {
         isLoading = false
     }
     
-    func fetchNonFavoritePhotos() async throws -> [PhotoItem] {
-        try await fetchAllPhotos()
+    func fetchNonFavoritePhotos(startDate: Date? = nil, endDate: Date? = nil) async throws -> [PhotoItem] {
+        try await fetchAllPhotos(startDate: startDate, endDate: endDate)
         return photos.filter { !$0.isFavorite }
     }
     
@@ -129,4 +138,3 @@ enum PhotoLibraryError: LocalizedError {
         }
     }
 }
-

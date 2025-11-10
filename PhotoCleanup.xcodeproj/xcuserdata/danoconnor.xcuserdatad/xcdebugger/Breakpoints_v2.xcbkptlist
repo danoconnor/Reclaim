@@ -64,8 +64,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "330"
             endingLineNumber = "330"
-            landmarkName = "OneDriveError"
-            landmarkType = "13">
+            landmarkName = "downloadFile(_:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -80,8 +80,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "331"
             endingLineNumber = "331"
-            landmarkName = "unknown"
-            landmarkType = "0">
+            landmarkName = "downloadFile(_:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -96,7 +96,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "168"
             endingLineNumber = "168"
-            landmarkName = "Hashes"
+            landmarkName = "GraphResponse"
             landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
@@ -112,7 +112,125 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "200"
             endingLineNumber = "200"
-            landmarkName = "fetchFilesRecursively(folderPath:token:visitedPaths:depth:)"
+            landmarkName = "GraphFile"
+            landmarkType = "14">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/OneDriveService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "140"
+            endingLineNumber = "140"
+            landmarkName = "fetchFilesRecursively(folderPath:token:visitedPaths:startDate:endDate:depth:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e907"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "140"
+                  endingLineNumber = "140">
+               </Location>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e907"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "140"
+                  endingLineNumber = "140">
+               </Location>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e907"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "140"
+                  endingLineNumber = "140">
+               </Location>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e924"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "141"
+                  endingLineNumber = "141">
+               </Location>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e924"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "141"
+                  endingLineNumber = "141">
+               </Location>
+               <Location
+                  uuid = "8671C3C2-6AF6-416E-B1F0-81BCED5EAE48 - 3cb8664be567e924"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(1) suspend resume partial function for PhotoCleanup.OneDriveService.fetchFilesRecursively(folderPath: Swift.String, token: Swift.String, visitedPaths: Swift.Set&lt;Swift.String&gt;, startDate: Swift.Optional&lt;Foundation.Date&gt;, endDate: Swift.Optional&lt;Foundation.Date&gt;, depth: Swift.Int) async throws -&gt; Swift.Array&lt;PhotoCleanup.OneDriveFile&gt;"
+                  moduleName = "PhotoCleanup.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/danoconnor/Code/PhotoCleanup/PhotoCleanup/Services/OneDriveService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "141"
+                  endingLineNumber = "141">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "44ACFF53-9A2D-4EA5-83E9-79C83BBFB2D9"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "PhotoCleanup/Services/PhotoLibraryService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "60"
+            endingLineNumber = "60"
+            landmarkName = "fetchAllPhotos(startDate:endDate:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

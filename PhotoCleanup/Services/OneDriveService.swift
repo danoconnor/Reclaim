@@ -74,7 +74,7 @@ class OneDriveService: ObservableObject {
     
     // MARK: - Fetch Files
     
-    func fetchPhotosFromOneDrive(folderPath: String = "/Pictures") async throws {
+    func fetchPhotosFromOneDrive(folderPath: String = "/Pictures", startDate: Date? = nil, endDate: Date? = nil) async throws {
         let token: String
         if let existing = accessToken, let exp = tokenExpiration, exp.timeIntervalSinceNow > 60 { // token valid >= 60s
             token = existing
@@ -101,7 +101,7 @@ class OneDriveService: ObservableObject {
             // Example endpoint: GET /me/drive/root:/Photos:/children
             // Filter for image files
             
-            let files = try await fetchFilesFromGraphAPI(folderPath: folderPath, token: token)
+            let files = try await fetchFilesFromGraphAPI(folderPath: folderPath, token: token, startDate: startDate, endDate: endDate)
             self.oneDriveFiles = files
             isLoading = false
         } catch {
@@ -111,11 +111,11 @@ class OneDriveService: ObservableObject {
         }
     }
     
-    private func fetchFilesFromGraphAPI(folderPath: String, token: String) async throws -> [OneDriveFile] {
-        return try await fetchFilesRecursively(folderPath: folderPath, token: token, visitedPaths: [])
+    private func fetchFilesFromGraphAPI(folderPath: String, token: String, startDate: Date? = nil, endDate: Date? = nil) async throws -> [OneDriveFile] {
+        return try await fetchFilesRecursively(folderPath: folderPath, token: token, visitedPaths: [], startDate: startDate, endDate: endDate)
     }
     
-    private func fetchFilesRecursively(folderPath: String, token: String, visitedPaths: Set<String>, depth: Int = 0) async throws -> [OneDriveFile] {
+    private func fetchFilesRecursively(folderPath: String, token: String, visitedPaths: Set<String>, startDate: Date? = nil, endDate: Date? = nil, depth: Int = 0) async throws -> [OneDriveFile] {
         // Safety: Limit recursion depth to prevent infinite loops
         guard depth < 50 else { return [] }
         
@@ -130,8 +130,37 @@ class OneDriveService: ObservableObject {
         // Percent-encode each path segment to handle spaces and unicode
         let encodedPath = folderPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? folderPath
 
-        // Use $select to request fields we need including the folder facet
-        var endpoint = "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children?$select=id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,@microsoft.graph.downloadUrl"
+        // Build OData query parameters
+        var queryParams: [String] = []
+        
+        // $select to request only the fields we need
+        queryParams.append("$select=id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,@microsoft.graph.downloadUrl")
+        
+        // $filter to limit results by date range (if specified)
+        // Include ALL folders (so we can recurse) OR files within the date range
+        if let start = startDate, let end = endDate {
+            let iso = ISO8601DateFormatter()
+            let startStr = iso.string(from: start)
+            let endStr = iso.string(from: end)
+            // Include folders OR files within date range
+            let filterParam = "$filter=folder ne null or (createdDateTime ge \(startStr) and createdDateTime le \(endStr))"
+            queryParams.append(filterParam)
+        } else if let start = startDate {
+            let iso = ISO8601DateFormatter()
+            let startStr = iso.string(from: start)
+            // Include folders OR files created after start date
+            let filterParam = "$filter=folder ne null or createdDateTime ge \(startStr)"
+            queryParams.append(filterParam)
+        } else if let end = endDate {
+            let iso = ISO8601DateFormatter()
+            let endStr = iso.string(from: end)
+            // Include folders OR files created before end date
+            let filterParam = "$filter=folder ne null or createdDateTime le \(endStr)"
+            queryParams.append(filterParam)
+        }
+        
+        let queryString = queryParams.joined(separator: "&")
+        var endpoint = "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children?\(queryString)"
 
         struct GraphResponse: Codable {
             let value: [GraphFile]
@@ -221,6 +250,9 @@ class OneDriveService: ObservableObject {
                 let created = graphFile.createdDateTime.flatMap { iso.date(from: $0) }
                 let modified = graphFile.lastModifiedDateTime.flatMap { iso.date(from: $0) }
 
+                // No need for client-side filtering since we're using OData $filter
+                // The server already filtered by date range
+
                 // Determine which hash algorithm value we have (priority: sha256, quickXor, sha1)
                 let hashValue: String?
                 let hashAlgorithm: OneDriveHashAlgorithm?
@@ -256,6 +288,8 @@ class OneDriveService: ObservableObject {
                 folderPath: subfolderPath,
                 token: token,
                 visitedPaths: updatedVisitedPaths,
+                startDate: startDate,
+                endDate: endDate,
                 depth: depth + 1
             )
             allFiles.append(contentsOf: subFiles)

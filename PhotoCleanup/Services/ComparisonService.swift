@@ -26,18 +26,18 @@ class ComparisonService: ObservableObject {
     
     // MARK: - Comparison
     
-    func comparePhotos(oneDriveFolderPath: String = "/Pictures") async throws {
+    func comparePhotos(oneDriveFolderPath: String = "/Pictures", startDate: Date? = nil, endDate: Date? = nil) async throws {
         isComparing = true
         comparisonProgress = 0.0
         errorMessage = nil
         
         do {
-            // Fetch non-favorite photos from local library
-            let localPhotos = try await photoLibraryService.fetchNonFavoritePhotos()
+            // Fetch non-favorite photos from local library with date range filter
+            let localPhotos = try await photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
             comparisonProgress = 0.2
             
-            // Fetch photos from OneDrive
-            try await oneDriveService.fetchPhotosFromOneDrive(folderPath: oneDriveFolderPath)
+            // Fetch photos from OneDrive with date range filter
+            try await oneDriveService.fetchPhotosFromOneDrive(folderPath: oneDriveFolderPath, startDate: startDate, endDate: endDate)
             let oneDriveFiles = oneDriveService.oneDriveFiles
             comparisonProgress = 0.4
             

@@ -38,24 +38,28 @@ class PhotoLibraryService: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        
-        // Apply date range predicate if provided
-        if let start = startDate, let end = endDate {
-            fetchOptions.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate <= %@", start as NSDate, end as NSDate)
-        } else if let start = startDate {
-            fetchOptions.predicate = NSPredicate(format: "creationDate >= %@", start as NSDate)
-        } else if let end = endDate {
-            fetchOptions.predicate = NSPredicate(format: "creationDate <= %@", end as NSDate)
-        }
+        // Run fetching and processing on a background thread to avoid blocking the UI
+        let photoItems = try await Task.detached(priority: .userInitiated) { () -> [PhotoItem] in
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            
+            // Apply date range predicate if provided
+            if let start = startDate, let end = endDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate <= %@", start as NSDate, end as NSDate)
+            } else if let start = startDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate >= %@", start as NSDate)
+            } else if let end = endDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate <= %@", end as NSDate)
+            }
 
-        let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
 
-        var photoItems: [PhotoItem] = []
-        fetchResult.enumerateObjects { asset, _, _ in
-            photoItems.append(PhotoItem(asset: asset))
-        }
+            var items: [PhotoItem] = []
+            fetchResult.enumerateObjects { asset, _, _ in
+                items.append(PhotoItem(asset: asset))
+            }
+            return items
+        }.value
 
         self.photos = photoItems
         isLoading = false
@@ -106,7 +110,7 @@ class PhotoLibraryService: ObservableObject {
     func getThumbnail(for photoItem: PhotoItem, size: CGSize) async throws -> UIImage {
         let asset = photoItem.asset
         let options = PHImageRequestOptions()
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
         
         return try await withCheckedThrowingContinuation { continuation in

@@ -130,11 +130,12 @@ class OneDriveService: ObservableObject {
         // Percent-encode each path segment to handle spaces and unicode
         let encodedPath = folderPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? folderPath
 
-        // Build OData query parameters
-        var queryParams: [String] = []
+        // Use URLComponents to handle proper encoding of query parameters
+        var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children")
+        var queryItems: [URLQueryItem] = []
         
         // $select to request only the fields we need
-        queryParams.append("$select=id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,@microsoft.graph.downloadUrl")
+        queryItems.append(URLQueryItem(name: "$select", value: "id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,photo,@microsoft.graph.downloadUrl"))
         
         // $filter to limit results by date range (if specified)
         // Include ALL folders (so we can recurse) OR files within the date range
@@ -143,24 +144,25 @@ class OneDriveService: ObservableObject {
             let startStr = iso.string(from: start)
             let endStr = iso.string(from: end)
             // Include folders OR files within date range
-            let filterParam = "$filter=folder ne null or (createdDateTime ge \(startStr) and createdDateTime le \(endStr))"
-            queryParams.append(filterParam)
+            let filterValue = "folder ne null or (createdDateTime ge \(startStr) and createdDateTime le \(endStr))"
+            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
         } else if let start = startDate {
             let iso = ISO8601DateFormatter()
             let startStr = iso.string(from: start)
             // Include folders OR files created after start date
-            let filterParam = "$filter=folder ne null or createdDateTime ge \(startStr)"
-            queryParams.append(filterParam)
+            let filterValue = "folder ne null or createdDateTime ge \(startStr)"
+            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
         } else if let end = endDate {
             let iso = ISO8601DateFormatter()
             let endStr = iso.string(from: end)
             // Include folders OR files created before end date
-            let filterParam = "$filter=folder ne null or createdDateTime le \(endStr)"
-            queryParams.append(filterParam)
+            let filterValue = "folder ne null or createdDateTime le \(endStr)"
+            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
         }
         
-        let queryString = queryParams.joined(separator: "&")
-        var endpoint = "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children?\(queryString)"
+        components?.queryItems = queryItems
+        guard let initialURL = components?.url else { throw OneDriveError.invalidURL }
+        var currentURL = initialURL
 
         struct GraphResponse: Codable {
             let value: [GraphFile]
@@ -170,6 +172,10 @@ class OneDriveService: ObservableObject {
                 case value
                 case nextLink = "@odata.nextLink"
             }
+        }
+
+        struct GraphPhoto: Codable {
+            let takenDateTime: String?
         }
 
         struct GraphFile: Codable {
@@ -182,9 +188,10 @@ class OneDriveService: ObservableObject {
             let folder: FolderFacet?
             let image: ImageFacet?
             let downloadUrl: String?
+            let photo: GraphPhoto?
 
             private enum CodingKeys: String, CodingKey {
-                case id, name, size, createdDateTime, lastModifiedDateTime, file, folder, image
+                case id, name, size, createdDateTime, lastModifiedDateTime, file, folder, image, photo
                 case downloadUrl = "@microsoft.graph.downloadUrl"
             }
 
@@ -214,8 +221,7 @@ class OneDriveService: ObservableObject {
 
         // Paginate through all items in the current directory
         while true {
-            guard let url = URL(string: endpoint) else { throw OneDriveError.invalidURL }
-            var request = URLRequest(url: url)
+            var request = URLRequest(url: currentURL)
             request.httpMethod = "GET"
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -247,7 +253,16 @@ class OneDriveService: ObservableObject {
                 let isImageByExtension = imageExtensions.contains(fileExtension)
                 guard isImageByFacet || isImageByExtension else { continue }
 
-                let created = graphFile.createdDateTime.flatMap { iso.date(from: $0) }
+                // Photo taken time is more likely to match the created date of the local photo file,
+                // so use that if we have it
+                let created: Date?
+                if let photoTakenTimeStr = graphFile.photo?.takenDateTime,
+                   let photoTakenTime = iso.date(from: photoTakenTimeStr) {
+                    created = photoTakenTime
+                } else {
+                    created = graphFile.createdDateTime.flatMap { iso.date(from: $0) }
+                }
+
                 let modified = graphFile.lastModifiedDateTime.flatMap { iso.date(from: $0) }
 
                 // No need for client-side filtering since we're using OData $filter
@@ -274,8 +289,8 @@ class OneDriveService: ObservableObject {
                 allFiles.append(file)
             }
 
-            if let next = responseObj.nextLink {
-                endpoint = next
+            if let next = responseObj.nextLink, let nextURL = URL(string: next) {
+                currentURL = nextURL
                 continue
             } else {
                 break

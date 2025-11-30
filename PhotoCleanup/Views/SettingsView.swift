@@ -14,7 +14,7 @@ struct SettingsView: View {
     @ObservedObject var oneDriveService: OneDriveService
     
     @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Pictures"
-    @AppStorage("matchingSensitivity") private var matchingSensitivity = MatchingSensitivity.medium.rawValue
+    @AppStorage("matchingSensitivity") private var matchingSensitivity: MatchingSensitivity = .medium
     @AppStorage("requireConfirmation") private var requireConfirmation = true
     @AppStorage("enableDryRun") private var enableDryRun = false
     @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
@@ -103,8 +103,8 @@ struct SettingsView: View {
                 // Matching Settings
                 Section {
                     Picker("Matching Sensitivity", selection: $matchingSensitivity) {
-                        ForEach(MatchingSensitivity.allCases, id: \.rawValue) { sensitivity in
-                            Text(sensitivity.displayName).tag(sensitivity.rawValue)
+                        ForEach(MatchingSensitivity.allCases, id: \.self) { sensitivity in
+                            Text(sensitivity.displayName).tag(sensitivity)
                         }
                     }
                     
@@ -152,7 +152,7 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Link(destination: URL(string: "https://github.com")!) {
+                    Link(destination: URL(string: "https://github.com/danoconnor/PhotoCleanup")!) {
                         HStack {
                             Text("GitHub Repository")
                             Spacer()
@@ -230,13 +230,13 @@ struct SettingsView: View {
     }
     
     private var matchingSensitivityDescription: String {
-        switch MatchingSensitivity(rawValue: matchingSensitivity) ?? .medium {
+        switch matchingSensitivity {
         case .low:
-            return "Match only by filename. Fastest but less accurate."
+            return "Match only by filename. Fastest but least accurate."
         case .medium:
             return "Match by filename and file size. Good balance of speed and accuracy."
         case .high:
-            return "Match by filename, size, and date. Most accurate but slower."
+            return "Match by cryptographic hash. Most accurate but slowest."
         }
     }
 }
@@ -287,24 +287,7 @@ enum DateRangeFilter: String, CaseIterable {
     }
 }
 
-// MARK: - Matching Sensitivity
 
-enum MatchingSensitivity: String, CaseIterable {
-    case low = "low"
-    case medium = "medium"
-    case high = "high"
-    
-    var displayName: String {
-        switch self {
-        case .low:
-            return "Low (Filename only)"
-        case .medium:
-            return "Medium (Filename + Size)"
-        case .high:
-            return "High (Filename + Size + Date)"
-        }
-    }
-}
 
 #Preview {
     let photoService = PhotoLibraryService()

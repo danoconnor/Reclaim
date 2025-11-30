@@ -31,6 +31,8 @@ class ComparisonService: ObservableObject {
         comparisonProgress = 0.0
         errorMessage = nil
         
+        let sensitivity = MatchingSensitivity(rawValue: UserDefaults.standard.string(forKey: "matchingSensitivity") ?? "") ?? .medium
+        
         do {
             // Fetch non-favorite photos from local library with date range filter
             let localPhotos = try await photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
@@ -40,7 +42,7 @@ class ComparisonService: ObservableObject {
             try await oneDriveService.fetchPhotosFromOneDrive(folderPath: oneDriveFolderPath, startDate: startDate, endDate: endDate)
             let oneDriveFiles = oneDriveService.oneDriveFiles
             comparisonProgress = 0.4
-            
+
             // Build lookup structures for efficient matching
             let oneDriveFilesByName = Dictionary(grouping: oneDriveFiles, by: { $0.name })
             let oneDriveFilesBySize = Dictionary(grouping: oneDriveFiles, by: { $0.size })
@@ -54,7 +56,8 @@ class ComparisonService: ObservableObject {
                     for: photo,
                     in: oneDriveFiles,
                     byName: oneDriveFilesByName,
-                    bySize: oneDriveFilesBySize
+                    bySize: oneDriveFilesBySize,
+                    sensitivity: sensitivity
                 )
                 
                 let state: SyncState
@@ -74,8 +77,12 @@ class ComparisonService: ObservableObject {
                 
                 newSyncStatuses.append(syncStatus)
                 
-                // Update progress
-                comparisonProgress = 0.4 + (0.6 * Double(index + 1) / totalPhotos)
+                // Update progress periodically to avoid blocking UI
+                if index % 20 == 0 || index == localPhotos.count - 1 {
+                    comparisonProgress = 0.4 + (0.6 * Double(index + 1) / totalPhotos)
+                    // Yield to main thread to allow UI updates
+                    await Task.yield()
+                }
             }
             
             self.syncStatuses = newSyncStatuses
@@ -93,67 +100,70 @@ class ComparisonService: ObservableObject {
         for photo: PhotoItem,
         in oneDriveFiles: [OneDriveFile],
         byName: [String: [OneDriveFile]],
-        bySize: [Int64: [OneDriveFile]]
+        bySize: [Int64: [OneDriveFile]],
+        sensitivity: MatchingSensitivity
     ) async throws -> OneDriveFile? {
         
-        // Strategy 1: Match by filename and size (fast)
-        if let candidates = byName[photo.filename] {
-            for candidate in candidates {
+        // Strategy 1: Match by filename (fast)
+        let photoFileName = photo.filename
+        var candidatesByName = byName[photoFileName] ?? []
+        if let rangeOfIOS = photoFileName.range(of: "_iOS") {
+            let prefix = String(photoFileName[..<rangeOfIOS.upperBound])
+            let fileExtension = (photoFileName as NSString).pathExtension
+            let normalizedName = fileExtension.isEmpty ? prefix : "\(prefix).\(fileExtension)"
+            candidatesByName.append(contentsOf: byName[normalizedName] ?? [])
+        }
+
+        switch sensitivity {
+        case .low:
+            // Filename only
+            return candidatesByName.first
+            
+        case .medium:
+            // Filename + Size
+            for candidate in candidatesByName {
                 if candidate.size == photo.fileSize {
-                    // Found a match by name and size
                     return candidate
                 }
             }
-        }
-        
-        // Strategy 2: Match by size and similar date (if filename doesn't match)
-        if let candidates = bySize[photo.fileSize], let photoDate = photo.creationDate {
-            for candidate in candidates {
-                if let candidateDate = candidate.createdDateTime {
-                    // Check if dates are within 1 second of each other
-                    let timeDifference = abs(photoDate.timeIntervalSince(candidateDate))
-                    if timeDifference < 1.0 {
-                        return candidate
+            return nil
+            
+        case .high:
+            // File Hash
+            // First check size to narrow down candidates
+            if let candidates = bySize[photo.fileSize] {
+                let candidatesWithHash = candidates.filter { $0.hashValue != nil && $0.hashAlgorithm != nil }
+                if !candidatesWithHash.isEmpty {
+                    var localHashes: [OneDriveHashAlgorithm: String] = [:]
+
+                    func localHash(for algorithm: OneDriveHashAlgorithm) async throws -> String {
+                        if let existing = localHashes[algorithm] { return existing }
+                        let data = try await photoLibraryService.getPhotoData(for: photo)
+                        let computed: String
+                        switch algorithm {
+                        case .sha256:
+                            computed = sha256Hex(of: data)
+                        case .sha1:
+                            computed = sha1Hex(of: data)
+                        case .quickXor:
+                            computed = quickXorHash(of: data)
+                        }
+                        localHashes[algorithm] = computed
+                        return computed
+                    }
+
+                    for candidate in candidatesWithHash {
+                        if let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue {
+                            let local = try await localHash(for: algo)
+                            if local.caseInsensitiveCompare(remoteHash) == .orderedSame {
+                                return candidate
+                            }
+                        }
                     }
                 }
             }
+            return nil
         }
-        
-        // Strategy 3: Match by hash (most reliable but slower)
-        // Download local photo data once and compute required hash algorithms only for candidates.
-        // We only attempt this if there are any OneDrive files with a hash value.
-        let candidatesWithHash = oneDriveFiles.filter { $0.hashValue != nil && $0.hashAlgorithm != nil }
-        if !candidatesWithHash.isEmpty {
-            // Compute the necessary local hashes lazily per algorithm used among candidates.
-            var localHashes: [OneDriveHashAlgorithm: String] = [:]
-
-            func localHash(for algorithm: OneDriveHashAlgorithm) async throws -> String {
-                if let existing = localHashes[algorithm] { return existing }
-                let data = try await photoLibraryService.getPhotoData(for: photo)
-                let computed: String
-                switch algorithm {
-                case .sha256:
-                    computed = sha256Hex(of: data)
-                case .sha1:
-                    computed = sha1Hex(of: data)
-                case .quickXor:
-                    computed = quickXorHash(of: data)
-                }
-                localHashes[algorithm] = computed
-                return computed
-            }
-
-            for candidate in candidatesWithHash {
-                if let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue {
-                    let local = try await localHash(for: algo)
-                    if local.caseInsensitiveCompare(remoteHash) == .orderedSame {
-                        return candidate
-                    }
-                }
-            }
-        }
-        
-        return nil
     }
     
     // MARK: - Hash Computation

@@ -15,7 +15,6 @@ struct MainView: View {
     @StateObject private var comparisonService: ComparisonService
     @StateObject private var deletionService: DeletionService
     
-    @AppStorage("oneDriveFolderPath") private var oneDriveFolderPath = "/Pictures"
     @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
     @AppStorage("customStartDate") private var customStartDateTimestamp: Double = 0
     @AppStorage("customEndDate") private var customEndDateTimestamp: Double = Date().timeIntervalSince1970
@@ -345,7 +344,6 @@ struct MainView: View {
             let (startDate, endDate) = filter.getDateRange(customStart: customStart, customEnd: customEnd)
             
             try await comparisonService.comparePhotos(
-                oneDriveFolderPath: oneDriveFolderPath,
                 startDate: startDate,
                 endDate: endDate
             )
@@ -367,7 +365,6 @@ struct MainView: View {
             let (startDate, endDate) = filter.getDateRange(customStart: customStart, customEnd: customEnd)
             
             try await comparisonService.comparePhotos(
-                oneDriveFolderPath: oneDriveFolderPath,
                 startDate: startDate,
                 endDate: endDate
             )

@@ -23,10 +23,18 @@ class ComparisonService: ObservableObject {
         self.photoLibraryService = photoLibraryService
         self.oneDriveService = oneDriveService
     }
+
+    private static let oneDriveUTCFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd_HHmmssSSS"
+        return formatter
+    }()
     
     // MARK: - Comparison
     
-    func comparePhotos(oneDriveFolderPath: String = "/Pictures", startDate: Date? = nil, endDate: Date? = nil) async throws {
+    func comparePhotos(startDate: Date? = nil, endDate: Date? = nil) async throws {
         isComparing = true
         comparisonProgress = 0.0
         errorMessage = nil
@@ -39,7 +47,7 @@ class ComparisonService: ObservableObject {
             comparisonProgress = 0.2
             
             // Fetch photos from OneDrive with date range filter
-            try await oneDriveService.fetchPhotosFromOneDrive(folderPath: oneDriveFolderPath, startDate: startDate, endDate: endDate)
+            try await oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
             let oneDriveFiles = oneDriveService.oneDriveFiles
             comparisonProgress = 0.4
 
@@ -103,15 +111,18 @@ class ComparisonService: ObservableObject {
         bySize: [Int64: [OneDriveFile]],
         sensitivity: MatchingSensitivity
     ) async throws -> OneDriveFile? {
-        
-        // Strategy 1: Match by filename (fast)
+
         let photoFileName = photo.filename
-        var candidatesByName = byName[photoFileName] ?? []
-        if let rangeOfIOS = photoFileName.range(of: "_iOS") {
-            let prefix = String(photoFileName[..<rangeOfIOS.upperBound])
-            let fileExtension = (photoFileName as NSString).pathExtension
-            let normalizedName = fileExtension.isEmpty ? prefix : "\(prefix).\(fileExtension)"
-            candidatesByName.append(contentsOf: byName[normalizedName] ?? [])
+        var candidateNames = Set<String>([photoFileName])
+        candidateNames.formUnion(candidateOneDriveNames(for: photo))
+
+        var candidatesByName: [OneDriveFile] = []
+        var seenCandidateIds = Set<String>()
+        for name in candidateNames {
+            guard let matches = byName[name] else { continue }
+            for file in matches where seenCandidateIds.insert(file.id).inserted {
+                candidatesByName.append(file)
+            }
         }
 
         switch sensitivity {
@@ -164,6 +175,32 @@ class ComparisonService: ObservableObject {
             }
             return nil
         }
+    }
+
+    private func candidateOneDriveNames(for photo: PhotoItem) -> Set<String> {
+        guard let date = photo.creationDate ?? photo.modificationDate else { return [] }
+
+        let fileExtension = (photo.filename as NSString).pathExtension
+        let hasExtension = !fileExtension.isEmpty
+        let lowercasedExtension = fileExtension.lowercased()
+
+        var names: Set<String> = []
+
+        func appendNames(using base: String) {
+            guard !base.isEmpty else { return }
+            if hasExtension {
+                names.insert("\(base)_iOS.\(lowercasedExtension)")
+                if lowercasedExtension != fileExtension {
+                    names.insert("\(base)_iOS.\(fileExtension)")
+                }
+            } else {
+                names.insert("\(base)_iOS")
+            }
+        }
+
+        appendNames(using: Self.oneDriveUTCFormatter.string(from: date))
+
+        return names
     }
     
     // MARK: - Hash Computation

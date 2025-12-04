@@ -215,18 +215,13 @@ private func acquireTokenSilently() async throws -> String {
 5. Grant the requested permissions
 6. You should be redirected back to the app
 
-## Step 6: Configure OneDrive Settings
-
-### 6.1 Set Folder Path
+## Step 6: Review Settings
 
 1. In the app, tap the Settings icon (gear)
-2. Under "OneDrive Settings", set the folder path where your photos are stored
-   - Default: `/Photos`
-   - Or: `/Pictures/Camera Roll`
-   - Or: `/Documents/Photos`
+2. Confirm you're signed in to OneDrive and adjust optional preferences like date filters, matching sensitivity, and dry run mode
 3. Tap "Done"
 
-### 6.2 Test Photo Scanning
+### 6.1 Test Photo Scanning
 
 1. Go back to the main screen
 2. Tap "Scan for Synced Photos"

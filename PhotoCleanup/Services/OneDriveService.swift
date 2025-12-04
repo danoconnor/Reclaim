@@ -24,6 +24,66 @@ class OneDriveService: ObservableObject {
     private var currentAccount: MSALAccount?
     private var tokenExpiration: Date?
 
+    private struct GraphResponse: Codable {
+        let value: [GraphFile]
+        let nextLink: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case value
+            case nextLink = "@odata.nextLink"
+        }
+    }
+
+    private struct GraphPhoto: Codable {
+        let takenDateTime: String?
+    }
+
+    private struct GraphFile: Codable {
+        let id: String
+        let name: String
+        let size: Int64?
+        let file: FileInfo?
+        let fileSystemInfo: FileSystemInfo?
+        let downloadUrl: String?
+        let photo: GraphPhoto?
+        let folder: FolderInfo?
+        let bundle: BundleInfo?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, name, size, file, fileSystemInfo, photo, folder, bundle
+            case downloadUrl = "@microsoft.graph.downloadUrl"
+        }
+
+        struct FileInfo: Codable {
+            let hashes: Hashes?
+
+            struct Hashes: Codable {
+                let quickXorHash: String?
+                let sha1Hash: String?
+                let sha256Hash: String?
+            }
+        }
+
+        struct FileSystemInfo: Codable {
+            let createdDateTime: String?
+            let lastModifiedDateTime: String?
+        }
+
+        struct FolderInfo: Codable {
+            let childCount: Int?
+        }
+
+        struct BundleInfo: Codable {
+            let childCount: Int?
+            let bundleType: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case childCount
+                case bundleType
+            }
+        }
+    }
+
     init() {
         do {
             let authorityURL = URL(string: "https://login.microsoftonline.com/consumers")!
@@ -74,7 +134,7 @@ class OneDriveService: ObservableObject {
     
     // MARK: - Fetch Files
     
-    func fetchPhotosFromOneDrive(folderPath: String = "/Pictures", startDate: Date? = nil, endDate: Date? = nil) async throws {
+    func fetchPhotosFromOneDrive(startDate: Date? = nil, endDate: Date? = nil) async throws {
         let token: String
         if let existing = accessToken, let exp = tokenExpiration, exp.timeIntervalSinceNow > 60 { // token valid >= 60s
             token = existing
@@ -97,11 +157,7 @@ class OneDriveService: ObservableObject {
         errorMessage = nil
         
         do {
-            // TODO: Implement Microsoft Graph API calls
-            // Example endpoint: GET /me/drive/root:/Photos:/children
-            // Filter for image files
-            
-            let files = try await fetchFilesFromGraphAPI(folderPath: folderPath, token: token, startDate: startDate, endDate: endDate)
+            let files = try await fetchPhotosFromSpecialView(token: token, startDate: startDate, endDate: endDate)
             self.oneDriveFiles = files
             isLoading = false
         } catch {
@@ -111,115 +167,116 @@ class OneDriveService: ObservableObject {
         }
     }
     
-    private func fetchFilesFromGraphAPI(folderPath: String, token: String, startDate: Date? = nil, endDate: Date? = nil) async throws -> [OneDriveFile] {
-        return try await fetchFilesRecursively(folderPath: folderPath, token: token, visitedPaths: [], startDate: startDate, endDate: endDate)
-    }
-    
-    private func fetchFilesRecursively(folderPath: String, token: String, visitedPaths: Set<String>, startDate: Date? = nil, endDate: Date? = nil, depth: Int = 0) async throws -> [OneDriveFile] {
-        // Safety: Limit recursion depth to prevent infinite loops
-        guard depth < 50 else { return [] }
-        
-        // Prevent circular references
-        guard !visitedPaths.contains(folderPath) else { return [] }
-        
-        var updatedVisitedPaths = visitedPaths
-        updatedVisitedPaths.insert(folderPath)
-        
-        var allFiles: [OneDriveFile] = []
+    private func fetchPhotosFromSpecialView(token: String, startDate: Date?, endDate: Date?) async throws -> [OneDriveFile] {
+        let selectFields = "id,name,size,photo,file,fileSystemInfo,@microsoft.graph.downloadUrl,folder,bundle"
+        var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos/children")
+        components?.queryItems = [
+            URLQueryItem(name: "$select", value: selectFields)
+        ]
 
-        // Percent-encode each path segment to handle spaces and unicode
-        let encodedPath = folderPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? folderPath
-
-        // Use URLComponents to handle proper encoding of query parameters
-        var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/root:\(encodedPath):/children")
-        var queryItems: [URLQueryItem] = []
-        
-        // $select to request only the fields we need
-        queryItems.append(URLQueryItem(name: "$select", value: "id,name,size,createdDateTime,lastModifiedDateTime,file,folder,image,photo,@microsoft.graph.downloadUrl"))
-        
-        // $filter to limit results by date range (if specified)
-        // Include ALL folders (so we can recurse) OR files within the date range
-        if let start = startDate, let end = endDate {
-            let iso = ISO8601DateFormatter()
-            let startStr = iso.string(from: start)
-            let endStr = iso.string(from: end)
-            // Include folders OR files within date range
-            let filterValue = "folder ne null or (createdDateTime ge \(startStr) and createdDateTime le \(endStr))"
-            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
-        } else if let start = startDate {
-            let iso = ISO8601DateFormatter()
-            let startStr = iso.string(from: start)
-            // Include folders OR files created after start date
-            let filterValue = "folder ne null or createdDateTime ge \(startStr)"
-            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
-        } else if let end = endDate {
-            let iso = ISO8601DateFormatter()
-            let endStr = iso.string(from: end)
-            // Include folders OR files created before end date
-            let filterValue = "folder ne null or createdDateTime le \(endStr)"
-            queryItems.append(URLQueryItem(name: "$filter", value: filterValue))
-        }
-        
-        components?.queryItems = queryItems
         guard let initialURL = components?.url else { throw OneDriveError.invalidURL }
         var currentURL = initialURL
+        var allFiles: [OneDriveFile] = []
+        var seenFileIds = Set<String>()
+        var visitedContainers = Set<String>()
 
-        struct GraphResponse: Codable {
-            let value: [GraphFile]
-            let nextLink: String?
+        let decoder = JSONDecoder()
+        let isoWithFractional = ISO8601DateFormatter()
+        isoWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso = ISO8601DateFormatter()
 
-            private enum CodingKeys: String, CodingKey {
-                case value
-                case nextLink = "@odata.nextLink"
-            }
+        func parseDate(_ value: String?) -> Date? {
+            guard let value = value else { return nil }
+            return isoWithFractional.date(from: value) ?? iso.date(from: value)
         }
 
-        struct GraphPhoto: Codable {
-            let takenDateTime: String?
-        }
+        func makeOneDriveFile(from graphFile: GraphFile) -> OneDriveFile? {
+            guard graphFile.file != nil else { return nil }
 
-        struct GraphFile: Codable {
-            let id: String
-            let name: String
-            let size: Int64
-            let createdDateTime: String?
-            let lastModifiedDateTime: String?
-            let file: FileInfo?
-            let folder: FolderFacet?
-            let image: ImageFacet?
-            let downloadUrl: String?
-            let photo: GraphPhoto?
+            let takenDate = parseDate(graphFile.photo?.takenDateTime)
+            let createdDate = takenDate ?? parseDate(graphFile.fileSystemInfo?.createdDateTime)
+            let modifiedDate = parseDate(graphFile.fileSystemInfo?.lastModifiedDateTime)
 
-            private enum CodingKeys: String, CodingKey {
-                case id, name, size, createdDateTime, lastModifiedDateTime, file, folder, image, photo
-                case downloadUrl = "@microsoft.graph.downloadUrl"
+            if let start = startDate {
+                guard let created = createdDate, created >= start else { return nil }
+            }
+            if let end = endDate {
+                guard let created = createdDate, created <= end else { return nil }
             }
 
-            struct FileInfo: Codable {
-                let hashes: Hashes?
+            let hashValue: String?
+            let hashAlgorithm: OneDriveHashAlgorithm?
+            if let v = graphFile.file?.hashes?.sha256Hash { hashValue = v; hashAlgorithm = .sha256 }
+            else if let v = graphFile.file?.hashes?.quickXorHash { hashValue = v; hashAlgorithm = .quickXor }
+            else if let v = graphFile.file?.hashes?.sha1Hash { hashValue = v; hashAlgorithm = .sha1 }
+            else { hashValue = nil; hashAlgorithm = nil }
 
-                struct Hashes: Codable {
-                    let quickXorHash: String?
-                    let sha1Hash: String?
-                    let sha256Hash: String?
+            let fileSize = graphFile.size ?? 0
+
+            return OneDriveFile(
+                id: graphFile.id,
+                name: graphFile.name,
+                size: fileSize,
+                createdDateTime: createdDate,
+                lastModifiedDateTime: modifiedDate,
+                downloadUrl: graphFile.downloadUrl,
+                hashValue: hashValue,
+                hashAlgorithm: hashAlgorithm
+            )
+        }
+
+        func fetchDescendants(for itemId: String) async throws -> [OneDriveFile] {
+            guard !visitedContainers.contains(itemId) else { return [] }
+            visitedContainers.insert(itemId)
+
+            var childComponents = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/items/\(itemId)/children")
+            childComponents?.queryItems = [
+                URLQueryItem(name: "$select", value: selectFields)
+            ]
+
+            guard let initialChildURL = childComponents?.url else { throw OneDriveError.invalidURL }
+            var childURL = initialChildURL
+            var collected: [OneDriveFile] = []
+
+            while true {
+                var request = URLRequest(url: childURL)
+                request.httpMethod = "GET"
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+                let (data, response) = try await URLSession.shared.data(for: request)
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw OneDriveError.invalidResponse
+                }
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    throw OneDriveError.httpError(statusCode: httpResponse.statusCode)
+                }
+
+                let responseObj = try decoder.decode(GraphResponse.self, from: data)
+
+                for child in responseObj.value {
+                    if let file = makeOneDriveFile(from: child) {
+                        if seenFileIds.insert(file.id).inserted {
+                            collected.append(file)
+                        }
+                    } else if child.folder != nil || child.bundle != nil {
+                        let nested = try await fetchDescendants(for: child.id)
+                        collected.append(contentsOf: nested)
+                    }
+                }
+
+                if let next = responseObj.nextLink, let nextURL = URL(string: next) {
+                    childURL = nextURL
+                    continue
+                } else {
+                    break
                 }
             }
 
-            struct FolderFacet: Codable {
-                let childCount: Int?
-            }
-
-            struct ImageFacet: Codable {
-                let width: Int?
-                let height: Int?
-            }
+            return collected
         }
 
-        let decoder = JSONDecoder()
-        let iso = ISO8601DateFormatter()
-        var subdirectories: [String] = []
-
-        // Paginate through all items in the current directory
         while true {
             var request = URLRequest(url: currentURL)
             request.httpMethod = "GET"
@@ -237,56 +294,15 @@ class OneDriveService: ObservableObject {
 
             let responseObj = try decoder.decode(GraphResponse.self, from: data)
 
-            // Process items: collect image files and identify subdirectories
             for graphFile in responseObj.value {
-                // Check if this is a folder
-                if graphFile.folder != nil {
-                    let subfolderPath = "\(folderPath)/\(graphFile.name)"
-                    subdirectories.append(subfolderPath)
-                    continue
+                if let file = makeOneDriveFile(from: graphFile) {
+                    if seenFileIds.insert(file.id).inserted {
+                        allFiles.append(file)
+                    }
+                } else if graphFile.folder != nil || graphFile.bundle != nil {
+                    let nested = try await fetchDescendants(for: graphFile.id)
+                    allFiles.append(contentsOf: nested)
                 }
-                
-                // Process files: check if it's an image
-                let isImageByFacet = graphFile.image != nil
-                let imageExtensions = ["jpg", "jpeg", "png", "heic", "heif", "gif", "bmp", "tiff"]
-                let fileExtension = (graphFile.name as NSString).pathExtension.lowercased()
-                let isImageByExtension = imageExtensions.contains(fileExtension)
-                guard isImageByFacet || isImageByExtension else { continue }
-
-                // Photo taken time is more likely to match the created date of the local photo file,
-                // so use that if we have it
-                let created: Date?
-                if let photoTakenTimeStr = graphFile.photo?.takenDateTime,
-                   let photoTakenTime = iso.date(from: photoTakenTimeStr) {
-                    created = photoTakenTime
-                } else {
-                    created = graphFile.createdDateTime.flatMap { iso.date(from: $0) }
-                }
-
-                let modified = graphFile.lastModifiedDateTime.flatMap { iso.date(from: $0) }
-
-                // No need for client-side filtering since we're using OData $filter
-                // The server already filtered by date range
-
-                // Determine which hash algorithm value we have (priority: sha256, quickXor, sha1)
-                let hashValue: String?
-                let hashAlgorithm: OneDriveHashAlgorithm?
-                if let v = graphFile.file?.hashes?.sha256Hash { hashValue = v; hashAlgorithm = .sha256 }
-                else if let v = graphFile.file?.hashes?.quickXorHash { hashValue = v; hashAlgorithm = .quickXor }
-                else if let v = graphFile.file?.hashes?.sha1Hash { hashValue = v; hashAlgorithm = .sha1 }
-                else { hashValue = nil; hashAlgorithm = nil }
-
-                let file = OneDriveFile(
-                    id: graphFile.id,
-                    name: graphFile.name,
-                    size: graphFile.size,
-                    createdDateTime: created,
-                    lastModifiedDateTime: modified,
-                    downloadUrl: graphFile.downloadUrl,
-                    hashValue: hashValue,
-                    hashAlgorithm: hashAlgorithm
-                )
-                allFiles.append(file)
             }
 
             if let next = responseObj.nextLink, let nextURL = URL(string: next) {
@@ -297,56 +313,16 @@ class OneDriveService: ObservableObject {
             }
         }
 
-        // Recursively process subdirectories
-        for subfolderPath in subdirectories {
-            let subFiles = try await fetchFilesRecursively(
-                folderPath: subfolderPath,
-                token: token,
-                visitedPaths: updatedVisitedPaths,
-                startDate: startDate,
-                endDate: endDate,
-                depth: depth + 1
-            )
-            allFiles.append(contentsOf: subFiles)
+        // Sort client-side because the photos view rejects server-side ordering.
+        let sortedFiles = allFiles.sorted { lhs, rhs in
+            let lhsDate = lhs.createdDateTime ?? Date.distantPast
+            let rhsDate = rhs.createdDateTime ?? Date.distantPast
+
+            if lhsDate != rhsDate { return lhsDate > rhsDate }
+            return lhs.id < rhs.id
         }
 
-        return allFiles
-    }
-    
-    // MARK: - Download File
-    
-    func downloadFile(_ file: OneDriveFile) async throws -> Data {
-        guard isAuthenticated, let token = accessToken else {
-            throw OneDriveError.notAuthenticated
-        }
-        // If the file has a temporary downloadUrl provided by Graph, use it (no auth header needed).
-        if let download = file.downloadUrl, let url = URL(string: download) {
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                throw OneDriveError.downloadFailed
-            }
-            return data
-        }
-
-        // Fallback to Graph content endpoint which requires the bearer token
-        let endpoint = "https://graph.microsoft.com/v1.0/me/drive/items/\(file.id)/content"
-        guard let url = URL(string: endpoint) else {
-            throw OneDriveError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw OneDriveError.downloadFailed
-        }
-
-        return data
+        return sortedFiles
     }
 }
 

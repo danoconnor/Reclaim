@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0B2170492EF24CCF00AA3C2B /* PhotoCleanup.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PhotoCleanup.xctestplan; sourceTree = "<group>"; };
 		0B2ACC672EC02A5D004966FE /* PhotoCleanup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoCleanup.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B2ACC762EC02A61004966FE /* PhotoCleanupTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoCleanupTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B2ACC802EC02A61004966FE /* PhotoCleanupUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoCleanupUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,6 +94,7 @@
 		0B2ACC5E2EC02A5D004966FE = {
 			isa = PBXGroup;
 			children = (
+				0B2170492EF24CCF00AA3C2B /* PhotoCleanup.xctestplan */,
 				0B2ACC692EC02A5D004966FE /* PhotoCleanup */,
 				0B2ACC792EC02A61004966FE /* PhotoCleanupTests */,
 				0B2ACC832EC02A61004966FE /* PhotoCleanupUITests */,
@@ -190,7 +192,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2610;
-				LastUpgradeCheck = 2610;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					0B2ACC662EC02A5D004966FE = {
 						CreatedOnToolsVersion = 26.1;
@@ -350,6 +352,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -407,6 +410,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

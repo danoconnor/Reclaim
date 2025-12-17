@@ -16,9 +16,9 @@ class DeletionService: ObservableObject {
     @Published var errorMessage: String?
     @Published var deletionLog: [DeletionLogEntry] = []
     
-    private let photoLibraryService: PhotoLibraryService
+    private let photoLibraryService: PhotoLibraryServiceProtocol
     
-    init(photoLibraryService: PhotoLibraryService) {
+    init(photoLibraryService: PhotoLibraryServiceProtocol) {
         self.photoLibraryService = photoLibraryService
     }
     

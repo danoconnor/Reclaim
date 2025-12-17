@@ -10,7 +10,7 @@ import UIKit
 import Combine
 
 @MainActor
-class PhotoLibraryService: ObservableObject {
+class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     @Published var authorizationStatus: PHAuthorizationStatus = .notDetermined
     @Published var photos: [PhotoItem] = []
     @Published var isLoading = false
@@ -39,7 +39,7 @@ class PhotoLibraryService: ObservableObject {
         errorMessage = nil
         
         // Run fetching and processing on a background thread to avoid blocking the UI
-        let photoItems = try await Task.detached(priority: .userInitiated) { () -> [PhotoItem] in
+        let photoItems = await Task.detached(priority: .userInitiated) { () -> [PhotoItem] in
             let fetchOptions = PHFetchOptions()
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             
@@ -77,7 +77,8 @@ class PhotoLibraryService: ObservableObject {
             throw PhotoLibraryError.notAuthorized
         }
         
-        let assets = photoItems.map { $0.asset }
+        let assets = photoItems.compactMap { $0.asset }
+        guard !assets.isEmpty else { return }
         
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.deleteAssets(assets as NSFastEnumeration)
@@ -87,7 +88,10 @@ class PhotoLibraryService: ObservableObject {
     // MARK: - Get Photo Data
     
     func getPhotoData(for photoItem: PhotoItem) async throws -> Data {
-        let asset = photoItem.asset
+        guard let asset = photoItem.asset else {
+            throw PhotoLibraryError.assetNotFound
+        }
+        
         let options = PHImageRequestOptions()
         options.version = .original
         options.isSynchronous = false
@@ -108,7 +112,10 @@ class PhotoLibraryService: ObservableObject {
     }
     
     func getThumbnail(for photoItem: PhotoItem, size: CGSize) async throws -> UIImage {
-        let asset = photoItem.asset
+        guard let asset = photoItem.asset else {
+            throw PhotoLibraryError.assetNotFound
+        }
+        
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.isNetworkAccessAllowed = true
@@ -132,6 +139,7 @@ class PhotoLibraryService: ObservableObject {
 enum PhotoLibraryError: LocalizedError {
     case notAuthorized
     case failedToFetchData
+    case assetNotFound
     
     var errorDescription: String? {
         switch self {
@@ -139,6 +147,8 @@ enum PhotoLibraryError: LocalizedError {
             return "Photo library access not authorized. Please enable access in Settings."
         case .failedToFetchData:
             return "Failed to fetch photo data."
+        case .assetNotFound:
+            return "Photo asset not found."
         }
     }
 }

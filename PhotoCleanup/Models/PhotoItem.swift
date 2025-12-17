@@ -10,7 +10,7 @@ import Photos
 
 struct PhotoItem: Identifiable, Hashable {
     let id: String // PHAsset localIdentifier
-    let asset: PHAsset
+    let asset: PHAsset?
     let creationDate: Date?
     let modificationDate: Date?
     let isFavorite: Bool
@@ -28,6 +28,17 @@ struct PhotoItem: Identifiable, Hashable {
         let resources = PHAssetResource.assetResources(for: asset)
         self.fileSize = resources.first?.value(forKey: "fileSize") as? Int64 ?? 0
         self.filename = resources.first?.originalFilename ?? "Unknown"
+    }
+    
+    // Memberwise initializer for testing
+    init(id: String, asset: PHAsset? = nil, creationDate: Date?, modificationDate: Date?, isFavorite: Bool, fileSize: Int64, filename: String) {
+        self.id = id
+        self.asset = asset
+        self.creationDate = creationDate
+        self.modificationDate = modificationDate
+        self.isFavorite = isFavorite
+        self.fileSize = fileSize
+        self.filename = filename
     }
     
     func hash(into hasher: inout Hasher) {

@@ -10,7 +10,7 @@ import Combine
 import MSAL
 
 @MainActor
-class OneDriveService: ObservableObject {
+class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -23,66 +23,6 @@ class OneDriveService: ObservableObject {
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
     private var tokenExpiration: Date?
-
-    private struct GraphResponse: Codable {
-        let value: [GraphFile]
-        let nextLink: String?
-
-        private enum CodingKeys: String, CodingKey {
-            case value
-            case nextLink = "@odata.nextLink"
-        }
-    }
-
-    private struct GraphPhoto: Codable {
-        let takenDateTime: String?
-    }
-
-    private struct GraphFile: Codable {
-        let id: String
-        let name: String
-        let size: Int64?
-        let file: FileInfo?
-        let fileSystemInfo: FileSystemInfo?
-        let downloadUrl: String?
-        let photo: GraphPhoto?
-        let folder: FolderInfo?
-        let bundle: BundleInfo?
-
-        private enum CodingKeys: String, CodingKey {
-            case id, name, size, file, fileSystemInfo, photo, folder, bundle
-            case downloadUrl = "@microsoft.graph.downloadUrl"
-        }
-
-        struct FileInfo: Codable {
-            let hashes: Hashes?
-
-            struct Hashes: Codable {
-                let quickXorHash: String?
-                let sha1Hash: String?
-                let sha256Hash: String?
-            }
-        }
-
-        struct FileSystemInfo: Codable {
-            let createdDateTime: String?
-            let lastModifiedDateTime: String?
-        }
-
-        struct FolderInfo: Codable {
-            let childCount: Int?
-        }
-
-        struct BundleInfo: Codable {
-            let childCount: Int?
-            let bundleType: String?
-
-            private enum CodingKeys: String, CodingKey {
-                case childCount
-                case bundleType
-            }
-        }
-    }
 
     init() {
         do {
@@ -181,49 +121,6 @@ class OneDriveService: ObservableObject {
         var visitedContainers = Set<String>()
 
         let decoder = JSONDecoder()
-        let isoWithFractional = ISO8601DateFormatter()
-        isoWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let iso = ISO8601DateFormatter()
-
-        func parseDate(_ value: String?) -> Date? {
-            guard let value = value else { return nil }
-            return isoWithFractional.date(from: value) ?? iso.date(from: value)
-        }
-
-        func makeOneDriveFile(from graphFile: GraphFile) -> OneDriveFile? {
-            guard graphFile.file != nil else { return nil }
-
-            let takenDate = parseDate(graphFile.photo?.takenDateTime)
-            let createdDate = takenDate ?? parseDate(graphFile.fileSystemInfo?.createdDateTime)
-            let modifiedDate = parseDate(graphFile.fileSystemInfo?.lastModifiedDateTime)
-
-            if let start = startDate {
-                guard let created = createdDate, created >= start else { return nil }
-            }
-            if let end = endDate {
-                guard let created = createdDate, created <= end else { return nil }
-            }
-
-            let hashValue: String?
-            let hashAlgorithm: OneDriveHashAlgorithm?
-            if let v = graphFile.file?.hashes?.sha256Hash { hashValue = v; hashAlgorithm = .sha256 }
-            else if let v = graphFile.file?.hashes?.quickXorHash { hashValue = v; hashAlgorithm = .quickXor }
-            else if let v = graphFile.file?.hashes?.sha1Hash { hashValue = v; hashAlgorithm = .sha1 }
-            else { hashValue = nil; hashAlgorithm = nil }
-
-            let fileSize = graphFile.size ?? 0
-
-            return OneDriveFile(
-                id: graphFile.id,
-                name: graphFile.name,
-                size: fileSize,
-                createdDateTime: createdDate,
-                lastModifiedDateTime: modifiedDate,
-                downloadUrl: graphFile.downloadUrl,
-                hashValue: hashValue,
-                hashAlgorithm: hashAlgorithm
-            )
-        }
 
         func fetchDescendants(for itemId: String) async throws -> [OneDriveFile] {
             guard !visitedContainers.contains(itemId) else { return [] }
@@ -253,10 +150,10 @@ class OneDriveService: ObservableObject {
                     throw OneDriveError.httpError(statusCode: httpResponse.statusCode)
                 }
 
-                let responseObj = try decoder.decode(GraphResponse.self, from: data)
+                let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
 
                 for child in responseObj.value {
-                    if let file = makeOneDriveFile(from: child) {
+                    if let file = OneDriveParser.makeOneDriveFile(from: child, startDate: startDate, endDate: endDate) {
                         if seenFileIds.insert(file.id).inserted {
                             collected.append(file)
                         }
@@ -292,10 +189,10 @@ class OneDriveService: ObservableObject {
                 throw OneDriveError.httpError(statusCode: httpResponse.statusCode)
             }
 
-            let responseObj = try decoder.decode(GraphResponse.self, from: data)
+            let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
 
             for graphFile in responseObj.value {
-                if let file = makeOneDriveFile(from: graphFile) {
+                if let file = OneDriveParser.makeOneDriveFile(from: graphFile, startDate: startDate, endDate: endDate) {
                     if seenFileIds.insert(file.id).inserted {
                         allFiles.append(file)
                     }

@@ -1,4 +1,4 @@
-# PhotoCleanup - iOS Photo Management App
+# Reclaim - iOS Photo Management App
 
 An iOS app that helps you free up storage space by identifying and deleting photos from your device that have already been synced to OneDrive, while automatically protecting your favorite photos.
 
@@ -55,7 +55,7 @@ An iOS app that helps you free up storage space by identifying and deleting phot
 1. Go to [Azure Portal](https://portal.azure.com)
 2. Navigate to "Azure Active Directory" → "App registrations" → "New registration"
 3. Configure your app:
-   - Name: PhotoCleanup
+   - Name: Reclaim
    - Supported account types: Personal Microsoft accounts only
    - Redirect URI: `msauth.[YOUR-BUNDLE-ID]://auth`
 4. After registration, note down the **Application (client) ID**
@@ -69,7 +69,7 @@ An iOS app that helps you free up storage space by identifying and deleting phot
 ### 2. Update the Project
 
 1. Open `Info.plist` and replace `YOUR-BUNDLE-ID` with your actual bundle identifier
-2. Open `PhotoCleanup/Services/OneDriveService.swift`
+2. Open `Reclaim/Services/OneDriveService.swift`
 3. Replace `YOUR_CLIENT_ID` with your Application (client) ID from Azure
 
 ### 3. Add Dependencies
@@ -138,7 +138,7 @@ In Settings, you can configure:
 ## File Structure
 
 ```
-PhotoCleanup/
+Reclaim/
 ├── Models/
 │   ├── PhotoItem.swift
 │   ├── OneDriveFile.swift
@@ -153,7 +153,7 @@ PhotoCleanup/
 │   ├── PhotoReviewView.swift
 │   └── SettingsView.swift
 ├── ContentView.swift
-├── PhotoCleanupApp.swift
+├── ReclaimApp.swift
 └── Info.plist
 ```
 
@@ -177,7 +177,7 @@ PhotoCleanup/
 ## Troubleshooting
 
 ### "Not Authorized" Error
-- Go to iOS Settings → Privacy → Photos → PhotoCleanup
+- Go to iOS Settings → Privacy → Photos → Reclaim
 - Ensure "All Photos" access is granted
 
 ### OneDrive Authentication Fails

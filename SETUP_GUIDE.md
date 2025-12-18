@@ -1,6 +1,6 @@
-# PhotoCleanup Setup Guide
+# Reclaim Setup Guide
 
-This guide will walk you through the complete setup process for the PhotoCleanup iOS app.
+This guide will walk you through the complete setup process for the Reclaim iOS app.
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ This guide will walk you through the complete setup process for the PhotoCleanup
 ### 1.2 Configure Basic Settings
 
 Fill in the registration form:
-- **Name**: `PhotoCleanup` (or your preferred name)
+- **Name**: `Reclaim` (or your preferred name)
 - **Supported account types**: Select "Personal Microsoft accounts only"
 - **Redirect URI**: Leave blank for now (we'll add it later)
 
@@ -39,7 +39,7 @@ Example: `12345678-1234-1234-1234-123456789abc`
 1. Click "Authentication" in the left sidebar
 2. Click "+ Add a platform"
 3. Select "iOS / macOS"
-4. Enter your **Bundle ID** (e.g., `com.yourname.PhotoCleanup`)
+4. Enter your **Bundle ID** (e.g., `com.yourname.Reclaim`)
 5. The redirect URI will be auto-generated: `msauth.[BUNDLE-ID]://auth`
 6. Click "Configure"
 
@@ -61,27 +61,27 @@ Example: `12345678-1234-1234-1234-123456789abc`
 
 ### 2.1 Open the Project
 
-1. Clone or download the PhotoCleanup project
-2. Open `PhotoCleanup.xcodeproj` in Xcode
+1. Clone or download the Reclaim project
+2. Open `Reclaim.xcodeproj` in Xcode
 3. Select the project in the navigator
-4. Select the PhotoCleanup target
+4. Select the Reclaim target
 
 ### 2.2 Update Bundle Identifier
 
 1. In the "General" tab, find "Identity"
 2. Set your **Bundle Identifier** (must match what you entered in Azure)
-   - Example: `com.yourname.PhotoCleanup`
+   - Example: `com.yourname.Reclaim`
 
 ### 2.3 Update Info.plist
 
 1. Open `Info.plist` in the project
 2. Find `msauth.YOUR-BUNDLE-ID` and replace with your actual bundle ID
    - Before: `msauth.YOUR-BUNDLE-ID`
-   - After: `msauth.com.yourname.PhotoCleanup`
+   - After: `msauth.com.yourname.Reclaim`
 
 ### 2.4 Update OneDriveService
 
-1. Open `PhotoCleanup/Services/OneDriveService.swift`
+1. Open `Reclaim/Services/OneDriveService.swift`
 2. Find the line: `private let clientId = "YOUR_CLIENT_ID"`
 3. Replace `YOUR_CLIENT_ID` with your Application (client) ID from Azure
    - Example: `private let clientId = "12345678-1234-1234-1234-123456789abc"`
@@ -252,7 +252,7 @@ private func acquireTokenSilently() async throws -> String {
 ### Permission Issues
 
 **Photos not accessible**
-- Go to iOS Settings → Privacy & Security → Photos → PhotoCleanup
+- Go to iOS Settings → Privacy & Security → Photos → Reclaim
 - Ensure "All Photos" is selected
 
 **OneDrive files not loading**

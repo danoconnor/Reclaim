@@ -1,0 +1,39 @@
+{
+  "configurations" : [
+    {
+      "id" : "8DD1A1BF-0C80-4C4F-A766-0468BB3CA8AB",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Reclaim.xcodeproj",
+      "identifier" : "0B2ACC662EC02A5D004966FE",
+      "name" : "Reclaim"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Reclaim.xcodeproj",
+        "identifier" : "0B2ACC752EC02A61004966FE",
+        "name" : "ReclaimTests"
+      }
+    },
+    {
+      "enabled" : false,
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Reclaim.xcodeproj",
+        "identifier" : "0B2ACC7F2EC02A61004966FE",
+        "name" : "ReclaimUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

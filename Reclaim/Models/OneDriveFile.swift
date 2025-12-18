@@ -1,0 +1,42 @@
+//
+//  OneDriveFile.swift
+//  Reclaim
+//
+//  Created by Dan O'Connor on 11/8/25.
+//
+
+import Foundation
+
+enum OneDriveHashAlgorithm: String, Codable {
+    case sha256
+    case sha1
+    case quickXor
+}
+
+struct OneDriveFile: Identifiable, Hashable {
+    let id: String // OneDrive item ID
+    let name: String
+    let size: Int64
+    let createdDateTime: Date?
+    let lastModifiedDateTime: Date?
+    let downloadUrl: String?
+    let hashValue: String? // Hash value from Graph (sha256/sha1/quickXorHash)
+    let hashAlgorithm: OneDriveHashAlgorithm? // Which algorithm produced hashValue
+    
+    init(id: String, name: String, size: Int64, createdDateTime: Date?, lastModifiedDateTime: Date?, downloadUrl: String?, hashValue: String?, hashAlgorithm: OneDriveHashAlgorithm?) {
+        self.id = id
+        self.name = name
+        self.size = size
+        self.createdDateTime = createdDateTime
+        self.lastModifiedDateTime = lastModifiedDateTime
+        self.downloadUrl = downloadUrl
+        self.hashValue = hashValue
+        self.hashAlgorithm = hashAlgorithm
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: OneDriveFile, rhs: OneDriveFile) -> Bool { lhs.id == rhs.id }
+}

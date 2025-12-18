@@ -7,7 +7,6 @@
 
 import Foundation
 import Combine
-import MSAL
 
 @MainActor
 class OneDriveService: ObservableObject, OneDriveServiceProtocol {
@@ -17,33 +16,42 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     @Published var oneDriveFiles: [OneDriveFile] = []
     
     private var accessToken: String?
-    private let clientId = "46827a6b-71c9-48b9-b721-7abec6bab34d"
-    private let scopes = ["Files.Read"]
-    private lazy var redirectUri: String = "msauth.com.danoconnor.Reclaim://auth"
-    private var msalApp: MSALPublicClientApplication?
-    private var currentAccount: MSALAccount?
+    private var authProvider: AuthenticationProvider
+    private var currentAccount: Any?
     private var tokenExpiration: Date?
 
-    init() {
+    init(authProvider: AuthenticationProvider = MSALAuthenticationProvider()) {
+        self.authProvider = authProvider
         do {
-            let authorityURL = URL(string: "https://login.microsoftonline.com/consumers")!
-            let authority = try MSALAADAuthority(url: authorityURL)
-            let config = MSALPublicClientApplicationConfig(clientId: clientId, redirectUri: redirectUri, authority: authority)
-            self.msalApp = try MSALPublicClientApplication(configuration: config)
+            try self.authProvider.initialize()
+            Task {
+                await restoreSession()
+            }
         } catch {
-            print("MSAL initialization failed: \(error)")
+            print("Auth provider initialization failed: \(error)")
         }
     }
     
     // MARK: - Authentication
     
+    func restoreSession() async {
+        // Try silent authentication if we have an account
+        do {
+            if let account = try await authProvider.getAccount() {
+                let tokenResult = try await authProvider.acquireSilentToken(account: account)
+                applyTokenResult(tokenResult)
+            }
+        } catch {
+            print("Silent authentication failed during restore: \(error)")
+            // Do not fall back to interactive here
+        }
+    }
+    
     func authenticate() async throws {
-        guard let msalApp = msalApp else { throw OneDriveError.notImplemented }
-
         // Try silent first if we have an account
-        if let account = try await getAccount(msalApp: msalApp) {
+        if let account = try await authProvider.getAccount() {
             do {
-                let tokenResult = try await acquireSilentToken(app: msalApp, account: account)
+                let tokenResult = try await authProvider.acquireSilentToken(account: account)
                 applyTokenResult(tokenResult)
                 return
             } catch {
@@ -52,7 +60,7 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         }
 
         // Interactive sign-in
-        let tokenResult = try await acquireInteractiveToken(app: msalApp)
+        let tokenResult = try await authProvider.acquireInteractiveToken()
         applyTokenResult(tokenResult)
     }
     
@@ -62,11 +70,11 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         oneDriveFiles = []
         tokenExpiration = nil
 
-        if let account = currentAccount, let app = msalApp {
+        if let account = currentAccount {
             do {
-                try app.remove(account)
+                try authProvider.remove(account: account)
             } catch {
-                print("Failed to remove MSAL account: \(error)")
+                print("Failed to remove account: \(error)")
             }
         }
         currentAccount = nil
@@ -80,9 +88,9 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
             token = existing
         } else {
             // Attempt silent refresh if possible
-            if let msalApp = msalApp, let account = currentAccount {
+            if let account = currentAccount {
                 do {
-                    let result = try await acquireSilentToken(app: msalApp, account: account)
+                    let result = try await authProvider.acquireSilentToken(account: account)
                     applyTokenResult(result)
                     token = result.accessToken
                 } catch {
@@ -221,6 +229,13 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
 
         return sortedFiles
     }
+
+    private func applyTokenResult(_ result: AuthToken) {
+        self.accessToken = result.accessToken
+        self.tokenExpiration = result.expiresOn
+        self.currentAccount = result.account
+        self.isAuthenticated = true
+    }
 }
 
 // MARK: - Errors
@@ -251,54 +266,3 @@ enum OneDriveError: LocalizedError {
     }
 }
 
-// MARK: - MSAL Helpers
-extension OneDriveService {
-    private func getAccount(msalApp: MSALPublicClientApplication) async throws -> MSALAccount? {
-        let allAccounts = try msalApp.allAccounts()
-        return allAccounts.first
-    }
-
-    private func acquireSilentToken(app: MSALPublicClientApplication, account: MSALAccount) async throws -> MSALResult {
-        try await withCheckedThrowingContinuation { continuation in
-            let parameters = MSALSilentTokenParameters(scopes: scopes, account: account)
-            app.acquireTokenSilent(with: parameters) { result, error in
-                if let error = error { continuation.resume(throwing: error); return }
-                guard let result = result else { continuation.resume(throwing: OneDriveError.invalidResponse); return }
-                continuation.resume(returning: result)
-            }
-        }
-    }
-
-    private func acquireInteractiveToken(app: MSALPublicClientApplication) async throws -> MSALResult {
-        #if os(iOS)
-        let rootVC = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }?.rootViewController ?? UIViewController()
-        let webParameters = MSALWebviewParameters(authPresentationViewController: rootVC)
-        #elseif os(macOS)
-        let rootVC = NSApplication.shared.keyWindow?.contentViewController ?? NSViewController()
-        let webParameters = MSALWebviewParameters(authPresentationViewController: rootVC)
-        #else
-        let webParameters = MSALWebviewParameters(authPresentationViewController: UIViewController())
-        #endif
-
-        let interactiveParameters = MSALInteractiveTokenParameters(scopes: scopes, webviewParameters: webParameters)
-        interactiveParameters.promptType = .selectAccount
-
-        return try await withCheckedThrowingContinuation { continuation in
-            app.acquireToken(with: interactiveParameters) { result, error in
-                if let error = error { continuation.resume(throwing: error); return }
-                guard let result = result else { continuation.resume(throwing: OneDriveError.invalidResponse); return }
-                continuation.resume(returning: result)
-            }
-        }
-    }
-
-    private func applyTokenResult(_ result: MSALResult) {
-        self.accessToken = result.accessToken
-        self.tokenExpiration = result.expiresOn
-        self.currentAccount = result.account
-        self.isAuthenticated = true
-    }
-}

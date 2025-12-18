@@ -87,7 +87,7 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     
     // MARK: - Get Photo Data
     
-    func getPhotoData(for photoItem: PhotoItem) async throws -> Data {
+    nonisolated func getPhotoData(for photoItem: PhotoItem) async throws -> Data {
         guard let asset = photoItem.asset else {
             throw PhotoLibraryError.assetNotFound
         }
@@ -111,7 +111,7 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
         }
     }
     
-    func getThumbnail(for photoItem: PhotoItem, size: CGSize) async throws -> UIImage {
+    nonisolated func getThumbnail(for photoItem: PhotoItem, size: CGSize) async throws -> UIImage {
         guard let asset = photoItem.asset else {
             throw PhotoLibraryError.assetNotFound
         }

@@ -17,9 +17,9 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     @Published var oneDriveFiles: [OneDriveFile] = []
     
     private var accessToken: String?
-    private let clientId = "46827a6b-71c9-48b9-b721-7abec6bab34d" // TODO: Replace with your Azure AD App (Client) ID
-    private let scopes = ["Files.Read", "User.Read"] // Adjust scopes as needed
-    private lazy var redirectUri: String = "msauth.com.danoconnor.PhotoCleanup://auth"
+    private let clientId = "46827a6b-71c9-48b9-b721-7abec6bab34d"
+    private let scopes = ["Files.Read"]
+    private lazy var redirectUri: String = "msauth.com.danoconnor.Reclaim://auth"
     private var msalApp: MSALPublicClientApplication?
     private var currentAccount: MSALAccount?
     private var tokenExpiration: Date?

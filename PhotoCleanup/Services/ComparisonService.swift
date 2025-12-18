@@ -23,14 +23,6 @@ class ComparisonService: ObservableObject {
         self.photoLibraryService = photoLibraryService
         self.oneDriveService = oneDriveService
     }
-
-    private static let oneDriveUTCFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyyMMdd_HHmmssSSS"
-        return formatter
-    }()
     
     // MARK: - Comparison
     
@@ -55,42 +47,55 @@ class ComparisonService: ObservableObject {
             let oneDriveFilesByName = Dictionary(grouping: oneDriveFiles, by: { $0.name })
             let oneDriveFilesBySize = Dictionary(grouping: oneDriveFiles, by: { $0.size })
             
-            var newSyncStatuses: [SyncStatus] = []
             let totalPhotos = Double(localPhotos.count)
+            var completedCount = 0
             
-            // Compare each local photo
-            for (index, photo) in localPhotos.enumerated() {
-                let matchedFile = try await findMatch(
-                    for: photo,
-                    in: oneDriveFiles,
-                    byName: oneDriveFilesByName,
-                    bySize: oneDriveFilesBySize,
-                    sensitivity: sensitivity
-                )
-                
-                let state: SyncState
-                if let matched = matchedFile {
-                    state = .synced(oneDriveFileId: matched.id)
-                } else {
-                    state = .notSynced
+            // Use TaskGroup for concurrent comparison
+            let newSyncStatuses = await withTaskGroup(of: SyncStatus?.self) { group in
+                for photo in localPhotos {
+                    group.addTask {
+                        // Capture necessary data for the task
+                        let matchedFile = (try? await self.findMatch(
+                            for: photo,
+                            in: oneDriveFiles,
+                            byName: oneDriveFilesByName,
+                            bySize: oneDriveFilesBySize,
+                            sensitivity: sensitivity
+                        )) ?? nil
+                        
+                        let state: SyncState
+                        if let matched = matchedFile {
+                            state = .synced(oneDriveFileId: matched.id)
+                        } else {
+                            state = .notSynced
+                        }
+                        
+                        return SyncStatus(
+                            id: photo.id,
+                            photoItem: photo,
+                            state: state,
+                            matchedOneDriveFile: matchedFile,
+                            lastChecked: Date()
+                        )
+                    }
                 }
                 
-                let syncStatus = SyncStatus(
-                    id: photo.id,
-                    photoItem: photo,
-                    state: state,
-                    matchedOneDriveFile: matchedFile,
-                    lastChecked: Date()
-                )
-                
-                newSyncStatuses.append(syncStatus)
-                
-                // Update progress periodically to avoid blocking UI
-                if index % 20 == 0 || index == localPhotos.count - 1 {
-                    comparisonProgress = 0.4 + (0.6 * Double(index + 1) / totalPhotos)
-                    // Yield to main thread to allow UI updates
-                    await Task.yield()
+                var results: [SyncStatus] = []
+                for await status in group {
+                    if let status = status {
+                        results.append(status)
+                    }
+                    completedCount += 1
+                    
+                    // Update progress periodically on main actor
+                    if completedCount % 10 == 0 || completedCount == localPhotos.count {
+                        let progress = 0.4 + (0.6 * Double(completedCount) / totalPhotos)
+                        await MainActor.run {
+                            self.comparisonProgress = progress
+                        }
+                    }
                 }
+                return results
             }
             
             self.syncStatuses = newSyncStatuses
@@ -104,7 +109,7 @@ class ComparisonService: ObservableObject {
         }
     }
     
-    private func findMatch(
+    nonisolated private func findMatch(
         for photo: PhotoItem,
         in oneDriveFiles: [OneDriveFile],
         byName: [String: [OneDriveFile]],
@@ -149,16 +154,22 @@ class ComparisonService: ObservableObject {
 
                     func localHash(for algorithm: OneDriveHashAlgorithm) async throws -> String {
                         if let existing = localHashes[algorithm] { return existing }
+                        
+                        // Fetch data (on MainActor via service)
                         let data = try await photoLibraryService.getPhotoData(for: photo)
-                        let computed: String
-                        switch algorithm {
-                        case .sha256:
-                            computed = HashUtils.sha256Hex(of: data)
-                        case .sha1:
-                            computed = HashUtils.sha1Hex(of: data)
-                        case .quickXor:
-                            computed = HashUtils.quickXorHash(of: data)
-                        }
+                        
+                        // Compute hash in background to avoid blocking MainActor
+                        let computed = await Task.detached(priority: .userInitiated) {
+                            switch algorithm {
+                            case .sha256:
+                                return HashUtils.sha256Hex(of: data)
+                            case .sha1:
+                                return HashUtils.sha1Hex(of: data)
+                            case .quickXor:
+                                return HashUtils.quickXorHash(of: data)
+                            }
+                        }.value
+                        
                         localHashes[algorithm] = computed
                         return computed
                     }
@@ -177,8 +188,14 @@ class ComparisonService: ObservableObject {
         }
     }
 
-    private func candidateOneDriveNames(for photo: PhotoItem) -> Set<String> {
+    nonisolated private func candidateOneDriveNames(for photo: PhotoItem) -> Set<String> {
         guard let date = photo.creationDate ?? photo.modificationDate else { return [] }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd_HHmmssSSS"
+        let dateString = formatter.string(from: date)
 
         let fileExtension = (photo.filename as NSString).pathExtension
         let hasExtension = !fileExtension.isEmpty
@@ -197,18 +214,10 @@ class ComparisonService: ObservableObject {
                 names.insert("\(base)_iOS")
             }
         }
-
-        appendNames(using: Self.oneDriveUTCFormatter.string(from: date))
-
+        
+        appendNames(using: dateString)
+        
         return names
-    }
-    
-    // MARK: - Hash Computation
-    
-    func computeHash(for photo: PhotoItem) async throws -> String {
-        let data = try await photoLibraryService.getPhotoData(for: photo)
-        let hash = SHA256.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
     
     // MARK: - Statistics
@@ -241,9 +250,5 @@ class ComparisonService: ObservableObject {
             .filter { $0.canDelete }
             .map { $0.photoItem }
     }
-
-    // MARK: - Hash Helpers
-
-    // Hash implementations moved to HashUtils.swift
 }
 

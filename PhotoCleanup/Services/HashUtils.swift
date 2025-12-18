@@ -9,12 +9,12 @@ import Foundation
 import CryptoKit
 
 struct HashUtils {
-    static func sha256Hex(of data: Data) -> String {
+    static nonisolated func sha256Hex(of data: Data) -> String {
         let hash = SHA256.hash(data: data)
         return hash.map { String(format: "%02x", $0) }.joined()
     }
 
-    static func sha1Hex(of data: Data) -> String {
+    static nonisolated func sha1Hex(of data: Data) -> String {
         #if canImport(CryptoKit)
         // CryptoKit doesn't provide SHA1, so we implement a lightweight pure Swift SHA1 here.
         return Sha1.computeHex(data: data)
@@ -23,7 +23,7 @@ struct HashUtils {
         #endif
     }
 
-    static func quickXorHash(of data: Data) -> String {
+    static nonisolated func quickXorHash(of data: Data) -> String {
         // Implementation inspired by OneDrive quickXorHash algorithm specs.
         // quickXorHash produces a Base64 string from a 160-bit result.
         var arr = [UInt8](repeating: 0, count: 20) // 160 bits
@@ -41,7 +41,7 @@ struct HashUtils {
 // MARK: - SHA1 Implementation (Simplified)
 
 fileprivate enum Sha1 {
-    static func computeHex(data: Data) -> String {
+    static nonisolated func computeHex(data: Data) -> String {
         var message = data
         let ml = UInt64(message.count * 8)
         // Append the bit '1' to the message

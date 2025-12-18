@@ -10,11 +10,10 @@ import Combine
 import Photos
 import UIKit
 
-@MainActor
 protocol PhotoLibraryServiceProtocol: AnyObject {
-    func fetchNonFavoritePhotos(startDate: Date?, endDate: Date?) async throws -> [PhotoItem]
+    @MainActor func fetchNonFavoritePhotos(startDate: Date?, endDate: Date?) async throws -> [PhotoItem]
     func getPhotoData(for photoItem: PhotoItem) async throws -> Data
-    func deletePhotos(_ photoItems: [PhotoItem]) async throws
+    @MainActor func deletePhotos(_ photoItems: [PhotoItem]) async throws
 }
 
 @MainActor

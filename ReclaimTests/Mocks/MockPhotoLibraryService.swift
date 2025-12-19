@@ -12,6 +12,9 @@ import Photos
 class MockPhotoLibraryService: PhotoLibraryServiceProtocol {
     private let lock = NSLock()
     
+    var loadedPhotoCount: Int = 0
+    var totalPhotoCount: Int = 0
+    
     private var _fetchNonFavoritePhotosResult: [PhotoItem] = []
     var fetchNonFavoritePhotosResult: [PhotoItem] {
         get { lock.withLock { _fetchNonFavoritePhotosResult } }

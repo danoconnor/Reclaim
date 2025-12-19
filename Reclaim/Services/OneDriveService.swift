@@ -14,6 +14,9 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var oneDriveFiles: [OneDriveFile] = []
+    @Published var fetchProgress: Double = 0.0
+    @Published var fetchedCount: Int = 0
+    @Published var totalCount: Int = 0
     
     private var accessToken: String?
     private var authProvider: AuthenticationProvider
@@ -103,6 +106,9 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         
         isLoading = true
         errorMessage = nil
+        fetchProgress = 0.0
+        fetchedCount = 0
+        totalCount = 0
         
         do {
             let files = try await fetchPhotosFromSpecialView(token: token, startDate: startDate, endDate: endDate)
@@ -116,6 +122,29 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     }
     
     private func fetchPhotosFromSpecialView(token: String, startDate: Date?, endDate: Date?) async throws -> [OneDriveFile] {
+        // 1. Get initial count from root folder
+        var totalItemsToFetch = 0
+        var processedItems = 0
+        
+        let rootURL = URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos")!
+        var rootRequest = URLRequest(url: rootURL)
+        rootRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: rootRequest)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                let rootItem = try JSONDecoder().decode(OneDriveParser.GraphFile.self, from: data)
+                if let count = rootItem.folder?.childCount {
+                    totalItemsToFetch = count
+                }
+            }
+        } catch {
+            print("Failed to fetch root item count: \(error)")
+        }
+        
+        // Ensure we have at least 1 to avoid division by zero
+        if totalItemsToFetch == 0 { totalItemsToFetch = 1 }
+
         let selectFields = "id,name,size,photo,file,fileSystemInfo,@microsoft.graph.downloadUrl,folder,bundle"
         var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos/children")
         components?.queryItems = [
@@ -129,6 +158,16 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         var visitedContainers = Set<String>()
 
         let decoder = JSONDecoder()
+
+        func updateProgress() {
+            processedItems += 1
+            // Throttle updates to avoid blocking the main thread
+            if processedItems % 10 == 0 || processedItems >= totalItemsToFetch {
+                self.fetchProgress = min(Double(processedItems) / Double(totalItemsToFetch), 1.0)
+                self.fetchedCount = processedItems
+                self.totalCount = totalItemsToFetch
+            }
+        }
 
         func fetchDescendants(for itemId: String) async throws -> [OneDriveFile] {
             guard !visitedContainers.contains(itemId) else { return [] }
@@ -161,11 +200,21 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
                 let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
 
                 for child in responseObj.value {
+                    updateProgress()
+                    
                     if let file = OneDriveParser.makeOneDriveFile(from: child, startDate: startDate, endDate: endDate) {
                         if seenFileIds.insert(file.id).inserted {
                             collected.append(file)
                         }
                     } else if child.folder != nil || child.bundle != nil {
+                        if let folder = child.folder, let count = folder.childCount {
+                            totalItemsToFetch += count
+                            self.totalCount = totalItemsToFetch
+                        } else if let bundle = child.bundle, let count = bundle.childCount {
+                            totalItemsToFetch += count
+                            self.totalCount = totalItemsToFetch
+                        }
+                        
                         let nested = try await fetchDescendants(for: child.id)
                         collected.append(contentsOf: nested)
                     }
@@ -200,11 +249,21 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
             let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
 
             for graphFile in responseObj.value {
+                updateProgress()
+                
                 if let file = OneDriveParser.makeOneDriveFile(from: graphFile, startDate: startDate, endDate: endDate) {
                     if seenFileIds.insert(file.id).inserted {
                         allFiles.append(file)
                     }
                 } else if graphFile.folder != nil || graphFile.bundle != nil {
+                    if let folder = graphFile.folder, let count = folder.childCount {
+                        totalItemsToFetch += count
+                        self.totalCount = totalItemsToFetch
+                    } else if let bundle = graphFile.bundle, let count = bundle.childCount {
+                        totalItemsToFetch += count
+                        self.totalCount = totalItemsToFetch
+                    }
+                    
                     let nested = try await fetchDescendants(for: graphFile.id)
                     allFiles.append(contentsOf: nested)
                 }

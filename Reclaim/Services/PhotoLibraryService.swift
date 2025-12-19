@@ -15,6 +15,8 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     @Published var photos: [PhotoItem] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var loadedPhotoCount: Int = 0
+    @Published var totalPhotoCount: Int = 0
     
     init() {
         self.authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
@@ -37,9 +39,11 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
         
         isLoading = true
         errorMessage = nil
+        loadedPhotoCount = 0
+        totalPhotoCount = 0
         
         // Run fetching and processing on a background thread to avoid blocking the UI
-        let photoItems = await Task.detached(priority: .userInitiated) { () -> [PhotoItem] in
+        let photoItems = await Task.detached(priority: .userInitiated) { [weak self] () -> [PhotoItem] in
             let fetchOptions = PHFetchOptions()
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             
@@ -53,11 +57,31 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
             }
 
             let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            
+            await MainActor.run {
+                self?.totalPhotoCount = fetchResult.count
+            }
 
             var items: [PhotoItem] = []
+            var processedCount = 0
+            
             fetchResult.enumerateObjects { asset, _, _ in
                 items.append(PhotoItem(asset: asset))
+                processedCount += 1
+                
+                if processedCount % 50 == 0 {
+                    let currentCount = processedCount
+                    Task { @MainActor in
+                        self?.loadedPhotoCount = currentCount
+                    }
+                }
             }
+            
+            let finalCount = processedCount
+            Task { @MainActor in
+                self?.loadedPhotoCount = finalCount
+            }
+            
             return items
         }.value
 

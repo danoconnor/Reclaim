@@ -10,6 +10,9 @@ import Foundation
 
 class MockOneDriveService: OneDriveServiceProtocol {
     var oneDriveFiles: [OneDriveFile] = []
+    var fetchProgress: Double = 0.0
+    var fetchedCount: Int = 0
+    var totalCount: Int = 0
     var fetchPhotosFromOneDriveCalled = false
     
     func fetchPhotosFromOneDrive(startDate: Date?, endDate: Date?) async throws {

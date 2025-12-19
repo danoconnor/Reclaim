@@ -11,8 +11,23 @@ import Combine
 
 @MainActor
 class ComparisonService: ObservableObject {
+    enum ComparisonPhase: Equatable {
+        case idle
+        case fetchingData
+        case comparing
+        
+        var description: String {
+            switch self {
+            case .idle: return ""
+            case .fetchingData: return "Fetching photos from device and OneDrive..."
+            case .comparing: return "Comparing photos..."
+            }
+        }
+    }
+
     @Published var syncStatuses: [SyncStatus] = []
     @Published var isComparing = false
+    @Published var currentPhase: ComparisonPhase = .idle
     @Published var comparisonProgress: Double = 0.0
     @Published var errorMessage: String?
     
@@ -28,20 +43,22 @@ class ComparisonService: ObservableObject {
     
     func comparePhotos(startDate: Date? = nil, endDate: Date? = nil) async throws {
         isComparing = true
+        currentPhase = .fetchingData
         comparisonProgress = 0.0
         errorMessage = nil
         
         let sensitivity = MatchingSensitivity(rawValue: UserDefaults.standard.string(forKey: "matchingSensitivity") ?? "") ?? .medium
         
         do {
-            // Fetch non-favorite photos from local library with date range filter
-            let localPhotos = try await photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
-            comparisonProgress = 0.2
+            // Fetch data concurrently
+            async let localPhotosTask = photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
+            async let oneDriveFetchTask: Void = oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
             
-            // Fetch photos from OneDrive with date range filter
-            try await oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
+            let (localPhotos, _) = try await (localPhotosTask, oneDriveFetchTask)
             let oneDriveFiles = oneDriveService.oneDriveFiles
-            comparisonProgress = 0.4
+            
+            comparisonProgress = 0.0
+            currentPhase = .comparing
 
             // Build lookup structures for efficient matching
             let oneDriveFilesByName = Dictionary(grouping: oneDriveFiles, by: { $0.name })
@@ -81,6 +98,8 @@ class ComparisonService: ObservableObject {
                 }
                 
                 var results: [SyncStatus] = []
+                let updateInterval = max(10, Int(totalPhotos / 100))
+                
                 for await status in group {
                     if let status = status {
                         results.append(status)
@@ -88,8 +107,8 @@ class ComparisonService: ObservableObject {
                     completedCount += 1
                     
                     // Update progress periodically on main actor
-                    if completedCount % 10 == 0 || completedCount == localPhotos.count {
-                        let progress = 0.4 + (0.6 * Double(completedCount) / totalPhotos)
+                    if completedCount % updateInterval == 0 || completedCount == localPhotos.count {
+                        let progress = Double(completedCount) / totalPhotos
                         await MainActor.run {
                             self.comparisonProgress = progress
                         }
@@ -101,9 +120,11 @@ class ComparisonService: ObservableObject {
             self.syncStatuses = newSyncStatuses
             comparisonProgress = 1.0
             isComparing = false
+            currentPhase = .idle
             
         } catch {
             isComparing = false
+            currentPhase = .idle
             errorMessage = error.localizedDescription
             throw error
         }

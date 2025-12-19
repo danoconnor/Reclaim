@@ -52,7 +52,7 @@ struct MainView: View {
                 }
                 
                 // Statistics Section
-                if !comparisonService.syncStatuses.isEmpty {
+                if !comparisonService.syncStatuses.isEmpty || comparisonService.currentPhase == .fetchingData {
                     statisticsSection
                     Divider()
                 }
@@ -130,8 +130,19 @@ struct MainView: View {
             
             // Comparison Status
             if comparisonService.isComparing {
-                ProgressView(value: comparisonService.comparisonProgress) {
-                    Text("Comparing Photos...")
+                if comparisonService.currentPhase == .comparing {
+                    ProgressView(value: comparisonService.comparisonProgress) {
+                        Text(comparisonService.currentPhase.description)
+                    }
+                } else if comparisonService.currentPhase == .fetchingData {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text(comparisonService.currentPhase.description)
+                    }
+                } else {
+                    ProgressView {
+                        Text(comparisonService.currentPhase.description)
+                    }
                 }
             }
             
@@ -171,17 +182,17 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Statistics")
                 .font(.headline)
-            
+        
             HStack {
                 StatisticView(
-                    title: "Total Photos",
-                    value: "\(comparisonService.totalPhotos)",
+                    title: "Local Photos",
+                    value: "\(photoLibraryService.loadedPhotoCount)",
                     icon: "photo.on.rectangle"
                 )
                 
                 StatisticView(
-                    title: "Synced",
-                    value: "\(comparisonService.syncedPhotosCount)",
+                    title: "OneDrive Photos",
+                    value: "\(oneDriveService.fetchedCount)",
                     icon: "cloud.fill",
                     color: .green
                 )

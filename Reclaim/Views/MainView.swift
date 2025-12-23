@@ -203,14 +203,16 @@ struct MainView: View {
                     title: "Can Delete",
                     value: "\(comparisonService.deletablePhotosCount)",
                     icon: "trash.fill",
-                    color: .orange
+                    color: .orange,
+                    isLoading: comparisonService.isComparing
                 )
                 
                 StatisticView(
                     title: "Space to Free",
                     value: formatBytes(comparisonService.totalDeletableSize),
                     icon: "externaldrive.fill",
-                    color: .blue
+                    color: .blue,
+                    isLoading: comparisonService.isComparing
                 )
             }
         }
@@ -400,6 +402,7 @@ struct StatisticView: View {
     let value: String
     let icon: String
     var color: Color = .primary
+    var isLoading: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -410,9 +413,16 @@ struct StatisticView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            Text(value)
-                .font(.title2)
-                .fontWeight(.semibold)
+            
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(height: 28, alignment: .leading)
+            } else {
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()

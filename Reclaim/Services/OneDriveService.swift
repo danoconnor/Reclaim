@@ -122,159 +122,206 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     }
     
     private func fetchPhotosFromSpecialView(token: String, startDate: Date?, endDate: Date?) async throws -> [OneDriveFile] {
-        // 1. Get initial count from root folder
-        var totalItemsToFetch = 0
-        var processedItems = 0
-        
-        let rootURL = URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos")!
+        // Fetch root folder with expanded children in a single request
+        let rootURL = URL(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos?select=name,id,folder&expand=children(select=id,name,size,photo,file,fileSystemInfo,@microsoft.graph.downloadUrl,folder,bundle)")!
         var rootRequest = URLRequest(url: rootURL)
         rootRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        do {
-            let (data, response) = try await URLSession.shared.data(for: rootRequest)
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                let rootItem = try JSONDecoder().decode(OneDriveParser.GraphFile.self, from: data)
-                if let count = rootItem.folder?.childCount {
-                    totalItemsToFetch = count
-                }
-            }
-        } catch {
-            print("Failed to fetch root item count: \(error)")
+        let (data, response) = try await URLSession.shared.data(for: rootRequest)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OneDriveError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
         
-        // Ensure we have at least 1 to avoid division by zero
+        let rootItem = try JSONDecoder().decode(OneDriveParser.GraphFile.self, from: data)
+        
+        // Calculate initial total items
+        var totalItemsToFetch = rootItem.folder?.childCount ?? 1
         if totalItemsToFetch == 0 { totalItemsToFetch = 1 }
 
-        let selectFields = "id,name,size,photo,file,fileSystemInfo,@microsoft.graph.downloadUrl,folder,bundle"
-        var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/special/photos/children")
-        components?.queryItems = [
-            URLQueryItem(name: "$select", value: selectFields)
-        ]
-
-        guard let initialURL = components?.url else { throw OneDriveError.invalidURL }
-        var currentURL = initialURL
-        var allFiles: [OneDriveFile] = []
-        var seenFileIds = Set<String>()
-        var visitedContainers = Set<String>()
-
-        let decoder = JSONDecoder()
-
-        func updateProgress() {
-            processedItems += 1
-            // Throttle updates to avoid blocking the main thread
-            if processedItems % 10 == 0 || processedItems >= totalItemsToFetch {
-                self.fetchProgress = min(Double(processedItems) / Double(totalItemsToFetch), 1.0)
-                self.fetchedCount = processedItems
-                self.totalCount = totalItemsToFetch
+        actor RecursiveFetcher {
+            let token: String
+            let startDate: Date?
+            let endDate: Date?
+            let decoder = JSONDecoder()
+            
+            private var seenFileIds = Set<String>()
+            private var visitedContainers = Set<String>()
+            private var totalItemsToFetch: Int
+            private var processedItems = 0
+            
+            let onProgress: (Int, Int) -> Void
+            let onTotalUpdate: (Int) -> Void
+            
+            init(token: String, startDate: Date?, endDate: Date?, totalItems: Int,
+                 onProgress: @escaping (Int, Int) -> Void,
+                 onTotalUpdate: @escaping (Int) -> Void) {
+                self.token = token
+                self.startDate = startDate
+                self.endDate = endDate
+                self.totalItemsToFetch = totalItems
+                self.onProgress = onProgress
+                self.onTotalUpdate = onTotalUpdate
             }
-        }
+            
+            func markContainerVisited(_ id: String) -> Bool {
+                if visitedContainers.contains(id) {
+                    return false
+                }
+                visitedContainers.insert(id)
+                return true
+            }
+            
+            func addFile(_ file: OneDriveFile) -> Bool {
+                seenFileIds.insert(file.id).inserted
+            }
+            
+            func incrementTotal(by count: Int) {
+                totalItemsToFetch += count
+                onTotalUpdate(totalItemsToFetch)
+            }
+            
+            func getTotalItems() -> Int {
+                totalItemsToFetch
+            }
+            
+            func updateProgress() async {
+                processedItems += 1
+                if processedItems % 10 == 0 || processedItems >= totalItemsToFetch {
+                    onProgress(processedItems, totalItemsToFetch)
+                }
+            }
+            
+            func fetchExpandedItem(itemId: String) async throws -> [OneDriveFile] {
+                guard markContainerVisited(itemId) else { return [] }
 
-        func fetchDescendants(for itemId: String) async throws -> [OneDriveFile] {
-            guard !visitedContainers.contains(itemId) else { return [] }
-            visitedContainers.insert(itemId)
+                var components = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/items/\(itemId)")
+                let childSelect = "id,name,size,photo,file,fileSystemInfo,@microsoft.graph.downloadUrl,folder,bundle"
+                components?.queryItems = [
+                    URLQueryItem(name: "select", value: "id,name,folder,children"),
+                    URLQueryItem(name: "expand", value: "children(select=\(childSelect))")
+                ]
 
-            var childComponents = URLComponents(string: "https://graph.microsoft.com/v1.0/me/drive/items/\(itemId)/children")
-            childComponents?.queryItems = [
-                URLQueryItem(name: "$select", value: selectFields)
-            ]
-
-            guard let initialChildURL = childComponents?.url else { throw OneDriveError.invalidURL }
-            var childURL = initialChildURL
-            var collected: [OneDriveFile] = []
-
-            while true {
-                var request = URLRequest(url: childURL)
-                request.httpMethod = "GET"
+                guard let url = components?.url else { throw OneDriveError.invalidURL }
+                
+                var request = URLRequest(url: url)
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
+                
                 let (data, response) = try await URLSession.shared.data(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw OneDriveError.invalidResponse
+                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                    throw OneDriveError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                 }
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    throw OneDriveError.httpError(statusCode: httpResponse.statusCode)
+                
+                let item = try decoder.decode(OneDriveParser.GraphFile.self, from: data)
+                var collected: [OneDriveFile] = []
+                
+                if let children = item.children {
+                    let expandedFiles = try await processChildren(children)
+                    collected.append(contentsOf: expandedFiles)
                 }
-
-                let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
-
-                for child in responseObj.value {
-                    updateProgress()
+                
+                if let nextLink = item.childrenNextLink {
+                    let pagedFiles = try await fetchNextLink(nextLink)
+                    collected.append(contentsOf: pagedFiles)
+                }
+                
+                return collected
+            }
+            
+            func processChildren(_ children: [OneDriveParser.GraphFile]) async throws -> [OneDriveFile] {
+                var collected: [OneDriveFile] = []
+                var foldersToFetch: [String] = []
+                
+                // First pass: collect files and identify folders to fetch
+                for child in children {
+                    await updateProgress()
                     
                     if let file = OneDriveParser.makeOneDriveFile(from: child, startDate: startDate, endDate: endDate) {
-                        if seenFileIds.insert(file.id).inserted {
+                        if addFile(file) {
                             collected.append(file)
                         }
                     } else if child.folder != nil || child.bundle != nil {
                         if let folder = child.folder, let count = folder.childCount {
-                            totalItemsToFetch += count
-                            self.totalCount = totalItemsToFetch
+                            incrementTotal(by: count)
                         } else if let bundle = child.bundle, let count = bundle.childCount {
-                            totalItemsToFetch += count
-                            self.totalCount = totalItemsToFetch
+                            incrementTotal(by: count)
                         }
                         
-                        let nested = try await fetchDescendants(for: child.id)
-                        collected.append(contentsOf: nested)
+                        foldersToFetch.append(child.id)
                     }
                 }
-
-                if let next = responseObj.nextLink, let nextURL = URL(string: next) {
-                    childURL = nextURL
-                    continue
-                } else {
-                    break
-                }
-            }
-
-            return collected
-        }
-
-        while true {
-            var request = URLRequest(url: currentURL)
-            request.httpMethod = "GET"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw OneDriveError.invalidResponse
-            }
-            guard (200...299).contains(httpResponse.statusCode) else {
-                throw OneDriveError.httpError(statusCode: httpResponse.statusCode)
-            }
-
-            let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
-
-            for graphFile in responseObj.value {
-                updateProgress()
                 
-                if let file = OneDriveParser.makeOneDriveFile(from: graphFile, startDate: startDate, endDate: endDate) {
-                    if seenFileIds.insert(file.id).inserted {
-                        allFiles.append(file)
+                // Second pass: fetch all folders in parallel
+                if !foldersToFetch.isEmpty {
+                    let nestedFiles = try await withThrowingTaskGroup(of: [OneDriveFile].self) { group in
+                        for folderId in foldersToFetch {
+                            group.addTask {
+                                try await self.fetchExpandedItem(itemId: folderId)
+                            }
+                        }
+                        
+                        var allFiles: [OneDriveFile] = []
+                        for try await files in group {
+                            allFiles.append(contentsOf: files)
+                        }
+                        return allFiles
                     }
-                } else if graphFile.folder != nil || graphFile.bundle != nil {
-                    if let folder = graphFile.folder, let count = folder.childCount {
-                        totalItemsToFetch += count
-                        self.totalCount = totalItemsToFetch
-                    } else if let bundle = graphFile.bundle, let count = bundle.childCount {
-                        totalItemsToFetch += count
-                        self.totalCount = totalItemsToFetch
+                    collected.append(contentsOf: nestedFiles)
+                }
+                
+                return collected
+            }
+            
+            func fetchNextLink(_ urlString: String) async throws -> [OneDriveFile] {
+                var currentURLString = urlString
+                var collected: [OneDriveFile] = []
+                
+                while true {
+                    guard let url = URL(string: currentURLString) else { break }
+                    var request = URLRequest(url: url)
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                        throw OneDriveError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
                     }
                     
-                    let nested = try await fetchDescendants(for: graphFile.id)
-                    allFiles.append(contentsOf: nested)
+                    let responseObj = try decoder.decode(OneDriveParser.GraphResponse.self, from: data)
+                    let pageFiles = try await processChildren(responseObj.value)
+                    collected.append(contentsOf: pageFiles)
+                    
+                    if let next = responseObj.nextLink {
+                        currentURLString = next
+                    } else {
+                        break
+                    }
                 }
+                return collected
             }
+        }
 
-            if let next = responseObj.nextLink, let nextURL = URL(string: next) {
-                currentURL = nextURL
-                continue
-            } else {
-                break
+        let fetcher = RecursiveFetcher(token: token, startDate: startDate, endDate: endDate, totalItems: totalItemsToFetch, onProgress: { processed, total in
+            Task { @MainActor in
+                self.fetchProgress = min(Double(processed) / Double(total), 1.0)
+                self.fetchedCount = processed
+                self.totalCount = total
             }
+        }, onTotalUpdate: { total in
+            Task { @MainActor in
+                self.totalCount = total
+            }
+        })
+
+        // Process root children directly (already fetched with expand)
+        var allFiles: [OneDriveFile] = []
+        if let children = rootItem.children {
+            let rootFiles = try await fetcher.processChildren(children)
+            allFiles.append(contentsOf: rootFiles)
+        }
+        
+        // Handle pagination if present
+        if let nextLink = rootItem.childrenNextLink {
+            let pagedFiles = try await fetcher.fetchNextLink(nextLink)
+            allFiles.append(contentsOf: pagedFiles)
         }
 
         // Sort client-side because the photos view rejects server-side ordering.

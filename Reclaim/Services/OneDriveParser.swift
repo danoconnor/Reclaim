@@ -8,7 +8,7 @@
 import Foundation
 
 struct OneDriveParser {
-    struct GraphResponse: Codable {
+    struct GraphResponse: Codable, Sendable {
         let value: [GraphFile]
         let nextLink: String?
 
@@ -18,11 +18,11 @@ struct OneDriveParser {
         }
     }
 
-    struct GraphPhoto: Codable {
+    struct GraphPhoto: Codable, Sendable {
         let takenDateTime: String?
     }
 
-    struct GraphFile: Codable {
+    struct GraphFile: Codable, Sendable {
         let id: String
         let name: String
         let size: Int64?
@@ -32,32 +32,36 @@ struct OneDriveParser {
         let photo: GraphPhoto?
         let folder: FolderInfo?
         let bundle: BundleInfo?
+        let children: [GraphFile]?
+        let childrenNextLink: String?
 
         private enum CodingKeys: String, CodingKey {
             case id, name, size, file, fileSystemInfo, photo, folder, bundle
             case downloadUrl = "@microsoft.graph.downloadUrl"
+            case children
+            case childrenNextLink = "children@odata.nextLink"
         }
 
-        struct FileInfo: Codable {
+        struct FileInfo: Codable, Sendable {
             let hashes: Hashes?
 
-            struct Hashes: Codable {
+            struct Hashes: Codable, Sendable {
                 let quickXorHash: String?
                 let sha1Hash: String?
                 let sha256Hash: String?
             }
         }
 
-        struct FileSystemInfo: Codable {
+        struct FileSystemInfo: Codable, Sendable {
             let createdDateTime: String?
             let lastModifiedDateTime: String?
         }
 
-        struct FolderInfo: Codable {
+        struct FolderInfo: Codable, Sendable {
             let childCount: Int?
         }
 
-        struct BundleInfo: Codable {
+        struct BundleInfo: Codable, Sendable {
             let childCount: Int?
             let bundleType: String?
 
@@ -68,23 +72,26 @@ struct OneDriveParser {
         }
     }
     
-    private static let isoWithFractional: ISO8601DateFormatter = {
+    // nonisolated(unsafe): Static lazy properties are initialized once (thread-safe by Swift).
+    // Thread-safe because: ISO8601DateFormatter is thread-safe for reading operations,
+    // and these formatters are never mutated after initialization.
+    private nonisolated(unsafe) static let isoWithFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
     
-    private static let iso: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let iso: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         return formatter
     }()
     
-    static func parseDate(_ value: String?) -> Date? {
+    nonisolated static func parseDate(_ value: String?) -> Date? {
         guard let value = value else { return nil }
         return isoWithFractional.date(from: value) ?? iso.date(from: value)
     }
     
-    static func makeOneDriveFile(from graphFile: GraphFile, startDate: Date? = nil, endDate: Date? = nil) -> OneDriveFile? {
+    nonisolated static func makeOneDriveFile(from graphFile: GraphFile, startDate: Date? = nil, endDate: Date? = nil) -> OneDriveFile? {
         guard graphFile.file != nil else { return nil }
 
         let takenDate = parseDate(graphFile.photo?.takenDateTime)

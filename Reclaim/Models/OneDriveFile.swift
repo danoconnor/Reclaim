@@ -13,7 +13,7 @@ enum OneDriveHashAlgorithm: String, Codable {
     case quickXor
 }
 
-struct OneDriveFile: Identifiable, Hashable {
+struct OneDriveFile: Identifiable, Hashable, Sendable {
     let id: String // OneDrive item ID
     let name: String
     let size: Int64
@@ -23,7 +23,7 @@ struct OneDriveFile: Identifiable, Hashable {
     let hashValue: String? // Hash value from Graph (sha256/sha1/quickXorHash)
     let hashAlgorithm: OneDriveHashAlgorithm? // Which algorithm produced hashValue
     
-    init(id: String, name: String, size: Int64, createdDateTime: Date?, lastModifiedDateTime: Date?, downloadUrl: String?, hashValue: String?, hashAlgorithm: OneDriveHashAlgorithm?) {
+    nonisolated init(id: String, name: String, size: Int64, createdDateTime: Date?, lastModifiedDateTime: Date?, downloadUrl: String?, hashValue: String?, hashAlgorithm: OneDriveHashAlgorithm?) {
         self.id = id
         self.name = name
         self.size = size

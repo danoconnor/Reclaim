@@ -15,21 +15,25 @@ struct AuthToken {
     let account: Any
 }
 
-protocol AuthenticationProvider {
-    func initialize() throws
+protocol AuthenticationProvider: Sendable {
+    nonisolated func initialize() throws
     func getAccount() async throws -> Any?
     func acquireSilentToken(account: Any) async throws -> AuthToken
     func acquireInteractiveToken() async throws -> AuthToken
-    func remove(account: Any) throws
+    nonisolated func remove(account: Any) throws
 }
 
-class MSALAuthenticationProvider: AuthenticationProvider {
-    private var msalApp: MSALPublicClientApplication?
+final class MSALAuthenticationProvider: AuthenticationProvider, @unchecked Sendable {
+    // nonisolated(unsafe): This property is written once during initialize() and then only read.
+    // Thread-safe because: MSAL library guarantees thread-safety, and we never mutate after init.
+    private nonisolated(unsafe) var msalApp: MSALPublicClientApplication?
     private let clientId = "46827a6b-71c9-48b9-b721-7abec6bab34d"
     private let scopes = ["Files.Read"]
-    private lazy var redirectUri: String = "msauth.com.danoconnor.Reclaim://auth"
+    private let redirectUri: String = "msauth.com.danoconnor.Reclaim://auth"
     
-    func initialize() throws {
+    nonisolated init() {}
+    
+    nonisolated func initialize() throws {
         let authorityURL = URL(string: "https://login.microsoftonline.com/consumers")!
         let authority = try MSALAADAuthority(url: authorityURL)
         let config = MSALPublicClientApplicationConfig(clientId: clientId, redirectUri: redirectUri, authority: authority)
@@ -86,7 +90,7 @@ class MSALAuthenticationProvider: AuthenticationProvider {
         }
     }
     
-    func remove(account: Any) throws {
+    nonisolated func remove(account: Any) throws {
         guard let app = msalApp, let msalAccount = account as? MSALAccount else { return }
         try app.remove(msalAccount)
     }

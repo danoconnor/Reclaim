@@ -90,8 +90,68 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     }
     
     func fetchNonFavoritePhotos(startDate: Date? = nil, endDate: Date? = nil) async throws -> [PhotoItem] {
-        try await fetchAllPhotos(startDate: startDate, endDate: endDate)
-        return photos.filter { !$0.isFavorite }
+        guard authorizationStatus == .authorized || authorizationStatus == .limited else {
+            throw PhotoLibraryError.notAuthorized
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        loadedPhotoCount = 0
+        totalPhotoCount = 0
+        
+        let photoItems = await Task.detached(priority: .userInitiated) { [weak self] () -> [PhotoItem] in
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            
+            // Apply date range predicate if provided
+            if let start = startDate, let end = endDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate <= %@", start as NSDate, end as NSDate)
+            } else if let start = startDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate >= %@", start as NSDate)
+            } else if let end = endDate {
+                fetchOptions.predicate = NSPredicate(format: "creationDate <= %@", end as NSDate)
+            }
+
+            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            
+            await MainActor.run {
+                self?.totalPhotoCount = fetchResult.count
+            }
+
+            var assets: [PHAsset] = []
+            fetchResult.enumerateObjects { asset, _, _ in
+                assets.append(asset)
+            }
+            
+            // Filter non-favorites
+            let nonFavoriteAssets = assets.filter { !$0.isFavorite }
+            
+            var items: [PhotoItem] = []
+            var processedCount = 0
+            
+            for asset in nonFavoriteAssets {
+                items.append(PhotoItem(asset: asset))
+                processedCount += 1
+                
+                if processedCount % 50 == 0 {
+                    let currentCount = processedCount
+                    Task { @MainActor in
+                        self?.loadedPhotoCount = currentCount
+                    }
+                }
+            }
+            
+            let finalCount = processedCount
+            Task { @MainActor in
+                self?.loadedPhotoCount = finalCount
+            }
+            
+            return items
+        }.value
+
+        self.photos = photoItems
+        isLoading = false
+        return photoItems
     }
     
     // MARK: - Delete Photos

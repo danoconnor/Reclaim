@@ -7,12 +7,6 @@
 
 import Foundation
 
-enum OneDriveHashAlgorithm: String, Codable {
-    case sha256
-    case sha1
-    case quickXor
-}
-
 struct OneDriveFile: Identifiable, Hashable, Sendable {
     let id: String // OneDrive item ID
     let name: String
@@ -21,9 +15,9 @@ struct OneDriveFile: Identifiable, Hashable, Sendable {
     let lastModifiedDateTime: Date?
     let downloadUrl: String?
     let hashValue: String? // Hash value from Graph (sha256/sha1/quickXorHash)
-    let hashAlgorithm: OneDriveHashAlgorithm? // Which algorithm produced hashValue
+    let hashAlgorithm: HashAlgorithm? // Which algorithm produced hashValue
     
-    nonisolated init(id: String, name: String, size: Int64, createdDateTime: Date?, lastModifiedDateTime: Date?, downloadUrl: String?, hashValue: String?, hashAlgorithm: OneDriveHashAlgorithm?) {
+    nonisolated init(id: String, name: String, size: Int64, createdDateTime: Date?, lastModifiedDateTime: Date?, downloadUrl: String?, hashValue: String?, hashAlgorithm: HashAlgorithm?) {
         self.id = id
         self.name = name
         self.size = size

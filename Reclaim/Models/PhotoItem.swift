@@ -17,7 +17,7 @@ struct PhotoItem: Identifiable, Hashable {
     let fileSize: Int64
     let filename: String
     
-    init(asset: PHAsset) {
+    nonisolated init(asset: PHAsset) {
         self.id = asset.localIdentifier
         self.asset = asset
         self.creationDate = asset.creationDate

@@ -24,17 +24,118 @@ struct HashUtils {
     }
 
     static nonisolated func quickXorHash(of data: Data) -> String {
-        // Implementation inspired by OneDrive quickXorHash algorithm specs.
-        // quickXorHash produces a Base64 string from a 160-bit result.
-        var arr = [UInt8](repeating: 0, count: 20) // 160 bits
-        let bytes = [UInt8](data)
-        for (index, b) in bytes.enumerated() {
-            let offset = index % 20
-            arr[offset] = arr[offset] ^ b
+        // Faithful port of the OneDrive C# QuickXorHash algorithm.
+        // Produces a Base64-encoded 160-bit hash that matches OneDrive's quickXorHash.
+        var hasher = QuickXorHasher()
+        data.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            hasher.hashCore(baseAddress.assumingMemoryBound(to: UInt8.self), count: buffer.count)
         }
-        // Convert to Data then base64
-        let hashData = Data(arr)
-        return hashData.base64EncodedString()
+        let result = hasher.hashFinal()
+        return result.base64EncodedString()
+    }
+}
+
+// MARK: - QuickXorHash (OneDrive algorithm)
+
+/// A faithful Swift port of Microsoft's QuickXorHash algorithm.
+/// Reference: https://learn.microsoft.com/en-us/onedrive/developer/code-snippets/quickxorhash
+private struct QuickXorHasher {
+    private static let bitsInLastCell = 32
+    private static let shift: Int = 11
+    private static let widthInBits = 160
+
+    // (160 - 1) / 64 + 1 = 3 elements
+    private var data: [UInt64] = [0, 0, 0]
+    private var lengthSoFar: Int64 = 0
+    private var shiftSoFar: Int = 0
+
+    mutating func hashCore(_ array: UnsafePointer<UInt8>, count cbSize: Int) {
+        let ibStart = 0
+        let currentShift = self.shiftSoFar
+
+        // The bitvector where we'll start xoring
+        var vectorArrayIndex = currentShift / 64
+
+        // The position within the bit vector at which we begin xoring
+        var vectorOffset = currentShift % 64
+        let iterations = min(cbSize, Self.widthInBits)
+
+        for i in 0..<iterations {
+            let isLastCell = vectorArrayIndex == self.data.count - 1
+            let bitsInVectorCell = isLastCell ? Self.bitsInLastCell : 64
+
+            if vectorOffset <= bitsInVectorCell - 8 {
+                // The byte fits entirely within this vector cell
+                var j = ibStart + i
+                while j < cbSize + ibStart {
+                    self.data[vectorArrayIndex] ^= UInt64(array[j]) << vectorOffset
+                    j += Self.widthInBits
+                }
+            } else {
+                // The byte spans two vector cells
+                let index1 = vectorArrayIndex
+                let index2 = isLastCell ? 0 : (vectorArrayIndex + 1)
+                let low = bitsInVectorCell - vectorOffset
+
+                var xoredByte: UInt8 = 0
+                var j = ibStart + i
+                while j < cbSize + ibStart {
+                    xoredByte ^= array[j]
+                    j += Self.widthInBits
+                }
+                self.data[index1] ^= UInt64(xoredByte) << vectorOffset
+                self.data[index2] ^= UInt64(xoredByte) >> low
+            }
+
+            vectorOffset += Self.shift
+            while vectorOffset >= bitsInVectorCell {
+                vectorArrayIndex = isLastCell ? 0 : vectorArrayIndex + 1
+                vectorOffset -= bitsInVectorCell
+            }
+        }
+
+        // Update the starting position in a circular shift pattern
+        self.shiftSoFar = (self.shiftSoFar + Self.shift * (cbSize % Self.widthInBits)) % Self.widthInBits
+        self.lengthSoFar += Int64(cbSize)
+    }
+
+    func hashFinal() -> Data {
+        // Create a byte array big enough to hold all our data
+        // (160 - 1) / 8 + 1 = 20 bytes
+        var rgb = [UInt8](repeating: 0, count: (Self.widthInBits - 1) / 8 + 1)
+
+        // Copy all bitvectors to the byte array (little-endian)
+        for i in 0..<(self.data.count - 1) {
+            var value = self.data[i]
+            withUnsafeBytes(of: &value) { bytes in
+                for j in 0..<8 {
+                    rgb[i * 8 + j] = bytes[j]
+                }
+            }
+        }
+
+        // Copy last (partial) cell
+        let lastIndex = self.data.count - 1
+        let remainingBytes = rgb.count - lastIndex * 8
+        var lastValue = self.data[lastIndex]
+        withUnsafeBytes(of: &lastValue) { bytes in
+            for j in 0..<remainingBytes {
+                rgb[lastIndex * 8 + j] = bytes[j]
+            }
+        }
+
+        // XOR the file length with the least significant bits (little-endian)
+        var lengthValue = self.lengthSoFar
+        withUnsafeBytes(of: &lengthValue) { lengthBytes in
+            let lengthSize = 8 // Int64 is always 8 bytes
+            let offset = (Self.widthInBits / 8) - lengthSize
+            for i in 0..<lengthSize {
+                rgb[offset + i] ^= lengthBytes[i]
+            }
+        }
+
+        return Data(rgb)
     }
 }
 

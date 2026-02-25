@@ -106,7 +106,7 @@ struct OneDriveParser {
         }
 
         let hashValue: String?
-        let hashAlgorithm: OneDriveHashAlgorithm?
+        let hashAlgorithm: HashAlgorithm?
         if let v = graphFile.file?.hashes?.sha256Hash { hashValue = v; hashAlgorithm = .sha256 }
         else if let v = graphFile.file?.hashes?.quickXorHash { hashValue = v; hashAlgorithm = .quickXor }
         else if let v = graphFile.file?.hashes?.sha1Hash { hashValue = v; hashAlgorithm = .sha1 }

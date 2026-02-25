@@ -15,12 +15,14 @@ class ComparisonService: ObservableObject {
         case idle
         case fetchingData
         case comparing
+        case hashing
         
         var description: String {
             switch self {
             case .idle: return ""
             case .fetchingData: return "Fetching photos from device and OneDrive..."
             case .comparing: return "Comparing photos..."
+            case .hashing: return "Computing file hashes..."
             }
         }
     }
@@ -29,6 +31,8 @@ class ComparisonService: ObservableObject {
     @Published var isComparing = false
     @Published var currentPhase: ComparisonPhase = .idle
     @Published var comparisonProgress: Double = 0.0
+    @Published var hashingCompletedCount: Int = 0
+    @Published var hashingTotalCount: Int = 0
     @Published var errorMessage: String?
     
     private let photoLibraryService: PhotoLibraryServiceProtocol
@@ -50,7 +54,7 @@ class ComparisonService: ObservableObject {
         let sensitivity = MatchingSensitivity(rawValue: UserDefaults.standard.string(forKey: "matchingSensitivity") ?? "") ?? .medium
         
         do {
-            // Fetch data concurrently
+            // Fetch data concurrently - no longer need to pre-compute hashes
             async let localPhotosTask = photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
             async let oneDriveFetchTask: Void = oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
             
@@ -65,13 +69,21 @@ class ComparisonService: ObservableObject {
             let oneDriveFilesBySize = Dictionary(grouping: oneDriveFiles, by: { $0.size })
             
             let totalPhotos = Double(localPhotos.count)
-            var completedCount = 0
             
-            // Use TaskGroup for concurrent comparison
-            let newSyncStatuses = await withTaskGroup(of: SyncStatus?.self) { group in
-                for photo in localPhotos {
-                    group.addTask {
-                        // Capture necessary data for the task
+            let newSyncStatuses: [SyncStatus]
+            
+            if sensitivity == .high {
+                // For high sensitivity, use BatchProcessor to limit concurrency
+                // and avoid loading too many full-resolution images into memory at once.
+                currentPhase = .hashing
+                hashingCompletedCount = 0
+                hashingTotalCount = localPhotos.count
+                let maxConcurrency = 4
+                
+                let results = await BatchProcessor.process(
+                    items: localPhotos,
+                    batchSize: maxConcurrency,
+                    transform: { photo -> SyncStatus in
                         let matchedFile = (try? await self.findMatch(
                             for: photo,
                             in: oneDriveFiles,
@@ -94,27 +106,67 @@ class ComparisonService: ObservableObject {
                             matchedOneDriveFile: matchedFile,
                             lastChecked: Date()
                         )
-                    }
-                }
-                
-                var results: [SyncStatus] = []
-                let updateInterval = max(10, Int(totalPhotos / 100))
-                
-                for await status in group {
-                    if let status = status {
-                        results.append(status)
-                    }
-                    completedCount += 1
-                    
-                    // Update progress periodically on main actor
-                    if completedCount % updateInterval == 0 || completedCount == localPhotos.count {
-                        let progress = Double(completedCount) / totalPhotos
-                        await MainActor.run {
+                    },
+                    onBatchComplete: { count in
+                        let progress = Double(count) / totalPhotos
+                        Task { @MainActor in
                             self.comparisonProgress = progress
+                            self.hashingCompletedCount = count
                         }
                     }
+                )
+                
+                newSyncStatuses = results
+            } else {
+                // For low/medium sensitivity, no I/O needed — use TaskGroup for fast concurrent comparison
+                var completedCount = 0
+                
+                newSyncStatuses = await withTaskGroup(of: SyncStatus?.self) { group in
+                    for photo in localPhotos {
+                        group.addTask {
+                            let matchedFile = (try? await self.findMatch(
+                                for: photo,
+                                in: oneDriveFiles,
+                                byName: oneDriveFilesByName,
+                                bySize: oneDriveFilesBySize,
+                                sensitivity: sensitivity
+                            )) ?? nil
+                            
+                            let state: SyncState
+                            if let matched = matchedFile {
+                                state = .synced(oneDriveFileId: matched.id)
+                            } else {
+                                state = .notSynced
+                            }
+                            
+                            return SyncStatus(
+                                id: photo.id,
+                                photoItem: photo,
+                                state: state,
+                                matchedOneDriveFile: matchedFile,
+                                lastChecked: Date()
+                            )
+                        }
+                    }
+                    
+                    var results: [SyncStatus] = []
+                    let updateInterval = max(10, Int(totalPhotos / 100))
+                    
+                    for await status in group {
+                        if let status = status {
+                            results.append(status)
+                        }
+                        completedCount += 1
+                        
+                        if completedCount % updateInterval == 0 || completedCount == localPhotos.count {
+                            let progress = Double(completedCount) / totalPhotos
+                            await MainActor.run {
+                                self.comparisonProgress = progress
+                            }
+                        }
+                    }
+                    return results
                 }
-                return results
             }
             
             self.syncStatuses = newSyncStatuses
@@ -166,41 +218,42 @@ class ComparisonService: ObservableObject {
             return nil
             
         case .high:
-            // File Hash
+            // File Hash — compute on demand using the algorithm OneDrive used
             // First check size to narrow down candidates
             if let candidates = bySize[photo.fileSize] {
                 let candidatesWithHash = candidates.filter { $0.hashValue != nil && $0.hashAlgorithm != nil }
                 if !candidatesWithHash.isEmpty {
-                    var localHashes: [OneDriveHashAlgorithm: String] = [:]
-
-                    func localHash(for algorithm: OneDriveHashAlgorithm) async throws -> String {
-                        if let existing = localHashes[algorithm] { return existing }
-                        
-                        // Fetch data (on MainActor via service)
-                        let data = try await photoLibraryService.getPhotoData(for: photo)
-                        
-                        // Compute hash in background to avoid blocking MainActor
-                        let computed = await Task.detached(priority: .userInitiated) {
-                            switch algorithm {
-                            case .sha256:
-                                return HashUtils.sha256Hex(of: data)
-                            case .sha1:
-                                return HashUtils.sha1Hex(of: data)
-                            case .quickXor:
-                                return HashUtils.quickXorHash(of: data)
-                            }
-                        }.value
-                        
-                        localHashes[algorithm] = computed
-                        return computed
-                    }
-
+                    // Load photo data once for all candidate comparisons
+                    let data = try await photoLibraryService.getPhotoData(for: photo)
+                    
+                    // Group candidates by algorithm to avoid recomputing the same hash
+                    var hashCache: [HashAlgorithm: String] = [:]
+                    
                     for candidate in candidatesWithHash {
-                        if let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue {
-                            let local = try await localHash(for: algo)
-                            if local.caseInsensitiveCompare(remoteHash) == .orderedSame {
-                                return candidate
-                            }
+                        guard let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue else {
+                            continue
+                        }
+                        
+                        // Compute hash on demand, caching per algorithm
+                        let localHash: String
+                        if let cached = hashCache[algo] {
+                            localHash = cached
+                        } else {
+                            localHash = await Task.detached(priority: .userInitiated) {
+                                switch algo {
+                                case .sha256:
+                                    return HashUtils.sha256Hex(of: data)
+                                case .sha1:
+                                    return HashUtils.sha1Hex(of: data)
+                                case .quickXor:
+                                    return HashUtils.quickXorHash(of: data)
+                                }
+                            }.value
+                            hashCache[algo] = localHash
+                        }
+                        
+                        if localHash.caseInsensitiveCompare(remoteHash) == .orderedSame {
+                            return candidate
                         }
                     }
                 }
@@ -272,4 +325,3 @@ class ComparisonService: ObservableObject {
             .map { $0.photoItem }
     }
 }
-

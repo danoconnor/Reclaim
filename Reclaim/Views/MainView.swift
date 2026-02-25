@@ -64,7 +64,7 @@ struct MainView: View {
             }
             .padding()
             .navigationTitle("Reclaim")
-            .navigationSubtitle("Get your storage back")
+            //.navigationSubtitle("Get your storage back")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -130,7 +130,14 @@ struct MainView: View {
             
             // Comparison Status
             if comparisonService.isComparing {
-                if comparisonService.currentPhase == .comparing {
+                if comparisonService.currentPhase == .hashing {
+                    ProgressView(value: comparisonService.comparisonProgress) {
+                        Text(comparisonService.currentPhase.description)
+                    }
+                    Text("\(comparisonService.hashingCompletedCount) of \(comparisonService.hashingTotalCount) photos")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if comparisonService.currentPhase == .comparing {
                     ProgressView(value: comparisonService.comparisonProgress) {
                         Text(comparisonService.currentPhase.description)
                     }

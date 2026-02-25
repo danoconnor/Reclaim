@@ -51,7 +51,10 @@ class ComparisonService: ObservableObject {
         comparisonProgress = 0.0
         errorMessage = nil
         
-        let sensitivity = MatchingSensitivity(rawValue: UserDefaults.standard.string(forKey: "matchingSensitivity") ?? "") ?? .medium
+        // Default to high sensitivity if not set
+        // Note: this is not currently user-configurable in the UI, but can be set via UserDefaults for testing purposes
+        // Leaving the sensitivity switching logic in place in case we want to add UI controls for this in the future
+        let sensitivity = MatchingSensitivity(rawValue: UserDefaults.standard.string(forKey: "matchingSensitivity") ?? "") ?? .high
         
         do {
             // Fetch data concurrently - no longer need to pre-compute hashes

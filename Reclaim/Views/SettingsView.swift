@@ -13,9 +13,6 @@ struct SettingsView: View {
     @ObservedObject var photoLibraryService: PhotoLibraryService
     @ObservedObject var oneDriveService: OneDriveService
     
-    @AppStorage("matchingSensitivity") private var matchingSensitivity: MatchingSensitivity = .medium
-    @AppStorage("requireConfirmation") private var requireConfirmation = true
-    @AppStorage("enableDryRun") private var enableDryRun = false
     @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
     @AppStorage("customStartDate") private var customStartDateTimestamp: Double = 0
     @AppStorage("customEndDate") private var customEndDateTimestamp: Double = Date().timeIntervalSince1970
@@ -80,33 +77,6 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 } header: {
                     Text("Date Filter")
-                }
-                
-                // Matching Settings
-                Section {
-                    Picker("Matching Sensitivity", selection: $matchingSensitivity) {
-                        ForEach(MatchingSensitivity.allCases, id: \.self) { sensitivity in
-                            Text(sensitivity.displayName).tag(sensitivity)
-                        }
-                    }
-                    
-                    Text(matchingSensitivityDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } header: {
-                    Text("Photo Matching")
-                }
-                
-                // Safety Settings
-                Section {
-                    Toggle("Require Confirmation", isOn: $requireConfirmation)
-                    Toggle("Dry Run Mode", isOn: $enableDryRun)
-                    
-                    Text("Dry run mode will simulate deletions without actually removing photos.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } header: {
-                    Text("Safety")
                 }
                 
                 // Information Section
@@ -211,16 +181,7 @@ struct SettingsView: View {
         }
     }
     
-    private var matchingSensitivityDescription: String {
-        switch matchingSensitivity {
-        case .low:
-            return "Match only by filename. Fastest but least accurate."
-        case .medium:
-            return "Match by filename and file size. Good balance of speed and accuracy."
-        case .high:
-            return "Match by cryptographic hash. Most accurate but slowest."
-        }
-    }
+
 }
 
 // MARK: - Date Range Filter

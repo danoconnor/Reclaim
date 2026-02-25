@@ -377,7 +377,7 @@ struct MainView: View {
     private func performDeletion() async {
         do {
             let photos = comparisonService.getDeletablePhotos()
-            _ = try await deletionService.deleteBatch(photos)
+            _ = try await deletionService.deletePhotos(photos)
             
             // Refresh comparison after deletion with same date filter
             let filter = DateRangeFilter(rawValue: dateRangeFilter) ?? .allTime

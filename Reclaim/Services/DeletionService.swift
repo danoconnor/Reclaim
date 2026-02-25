@@ -24,81 +24,7 @@ class DeletionService: ObservableObject {
     
     // MARK: - Deletion
     
-    func deletePhotos(_ photos: [PhotoItem], dryRun: Bool = false) async throws -> DeletionResult {
-        guard !photos.isEmpty else {
-            throw DeletionError.noPhotosToDelete
-        }
-        
-        isDeleting = true
-        deletionProgress = 0.0
-        errorMessage = nil
-        deletedCount = 0
-        
-        var successfulDeletions: [PhotoItem] = []
-        var failedDeletions: [(PhotoItem, Error)] = []
-        
-        let totalPhotos = Double(photos.count)
-        
-        if dryRun {
-            // Dry run - just log what would be deleted
-            for (index, photo) in photos.enumerated() {
-                let entry = DeletionLogEntry(
-                    photo: photo,
-                    timestamp: Date(),
-                    success: true,
-                    dryRun: true
-                )
-                deletionLog.append(entry)
-                successfulDeletions.append(photo)
-                
-                deletionProgress = Double(index + 1) / totalPhotos
-            }
-        } else {
-            // Actual deletion
-            for (index, photo) in photos.enumerated() {
-                do {
-                    // Delete individual photo
-                    try await photoLibraryService.deletePhotos([photo])
-                    
-                    let entry = DeletionLogEntry(
-                        photo: photo,
-                        timestamp: Date(),
-                        success: true,
-                        dryRun: false
-                    )
-                    deletionLog.append(entry)
-                    successfulDeletions.append(photo)
-                    deletedCount += 1
-                    
-                } catch {
-                    let entry = DeletionLogEntry(
-                        photo: photo,
-                        timestamp: Date(),
-                        success: false,
-                        dryRun: false,
-                        errorMessage: error.localizedDescription
-                    )
-                    deletionLog.append(entry)
-                    failedDeletions.append((photo, error))
-                }
-                
-                deletionProgress = Double(index + 1) / totalPhotos
-            }
-        }
-        
-        isDeleting = false
-        
-        return DeletionResult(
-            totalAttempted: photos.count,
-            successfulDeletions: successfulDeletions,
-            failedDeletions: failedDeletions,
-            dryRun: dryRun
-        )
-    }
-    
-    // MARK: - Batch Deletion with Safety
-    
-    func deleteBatch(_ photos: [PhotoItem], batchSize: Int = 10) async throws -> DeletionResult {
+    func deletePhotos(_ photos: [PhotoItem]) async throws -> DeletionResult {
         guard !photos.isEmpty else {
             throw DeletionError.noPhotosToDelete
         }
@@ -108,68 +34,33 @@ class DeletionService: ObservableObject {
         deletedCount = 0
         errorMessage = nil
         
-        var allSuccessful: [PhotoItem] = []
-        var allFailed: [(PhotoItem, Error)] = []
-        
-        let batches = photos.chunked(into: batchSize)
-        let totalBatches = Double(batches.count)
-        
-        for (batchIndex, batch) in batches.enumerated() {
-            do {
-                try await photoLibraryService.deletePhotos(batch)
-                
-                for photo in batch {
-                    let entry = DeletionLogEntry(
-                        photo: photo,
-                        timestamp: Date(),
-                        success: true,
-                        dryRun: false
-                    )
-                    deletionLog.append(entry)
-                    allSuccessful.append(photo)
-                    deletedCount += 1
-                }
-                
-            } catch {
-                // If batch fails, try individual deletions
-                for photo in batch {
-                    do {
-                        try await photoLibraryService.deletePhotos([photo])
-                        
-                        let entry = DeletionLogEntry(
-                            photo: photo,
-                            timestamp: Date(),
-                            success: true,
-                            dryRun: false
-                        )
-                        deletionLog.append(entry)
-                        allSuccessful.append(photo)
-                        deletedCount += 1
-                        
-                    } catch let individualError {
-                        let entry = DeletionLogEntry(
-                            photo: photo,
-                            timestamp: Date(),
-                            success: false,
-                            dryRun: false,
-                            errorMessage: individualError.localizedDescription
-                        )
-                        deletionLog.append(entry)
-                        allFailed.append((photo, individualError))
-                    }
-                }
-            }
-            
-            deletionProgress = Double(batchIndex + 1) / totalBatches
+        // Delete all photos in a single call so iOS shows only one confirmation prompt
+        do {
+            try await photoLibraryService.deletePhotos(photos)
+        } catch {
+            isDeleting = false
+            deletionProgress = 0.0
+            deletedCount = 0
+            throw error
         }
+        
+        for photo in photos {
+            let entry = DeletionLogEntry(
+                photo: photo,
+                timestamp: Date(),
+                success: true
+            )
+            deletionLog.append(entry)
+            deletedCount += 1
+        }
+        deletionProgress = 1.0
         
         isDeleting = false
         
         return DeletionResult(
             totalAttempted: photos.count,
-            successfulDeletions: allSuccessful,
-            failedDeletions: allFailed,
-            dryRun: false
+            successfulDeletions: photos,
+            failedDeletions: []
         )
     }
     
@@ -184,9 +75,8 @@ class DeletionService: ObservableObject {
             let size = entry.photo.fileSize
             let status = entry.success ? "Success" : "Failed"
             let error = entry.errorMessage ?? ""
-            let dryRunIndicator = entry.dryRun ? " (Dry Run)" : ""
             
-            csv += "\"\(timestamp)\",\"\(filename)\",\(size),\"\(status)\(dryRunIndicator)\",\"\(error)\"\n"
+            csv += "\"\(timestamp)\",\"\(filename)\",\(size),\"\(status)\",\"\(error)\"\n"
         }
         
         return csv
@@ -204,7 +94,6 @@ struct DeletionResult {
     let totalAttempted: Int
     let successfulDeletions: [PhotoItem]
     let failedDeletions: [(PhotoItem, Error)]
-    let dryRun: Bool
     
     var successCount: Int {
         successfulDeletions.count
@@ -229,14 +118,12 @@ struct DeletionLogEntry: Identifiable {
     let photo: PhotoItem
     let timestamp: Date
     let success: Bool
-    let dryRun: Bool
     let errorMessage: String?
     
-    init(photo: PhotoItem, timestamp: Date, success: Bool, dryRun: Bool, errorMessage: String? = nil) {
+    init(photo: PhotoItem, timestamp: Date, success: Bool, errorMessage: String? = nil) {
         self.photo = photo
         self.timestamp = timestamp
         self.success = success
-        self.dryRun = dryRun
         self.errorMessage = errorMessage
     }
 }

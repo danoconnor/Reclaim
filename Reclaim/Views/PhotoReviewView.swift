@@ -199,7 +199,7 @@ struct PhotoReviewView: View {
             .map { $0.photoItem }
         
         do {
-            _ = try await deletionService.deleteBatch(photosToDelete)
+            _ = try await deletionService.deletePhotos(photosToDelete)
             
             // Refresh comparison
             try await comparisonService.comparePhotos()

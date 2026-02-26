@@ -20,9 +20,8 @@ protocol PhotoLibraryServiceProtocol: AnyObject {
 
 @MainActor
 protocol OneDriveServiceProtocol: AnyObject {
-    var oneDriveFiles: [OneDriveFile] { get }
     var fetchProgress: Double { get }
     var fetchedCount: Int { get }
     var totalCount: Int { get }
-    func fetchPhotosFromOneDrive(startDate: Date?, endDate: Date?) async throws
+    func fetchPhotosFromOneDrive(startDate: Date?, endDate: Date?) async throws -> [OneDriveFile]
 }

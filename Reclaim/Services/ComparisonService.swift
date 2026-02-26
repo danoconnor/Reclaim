@@ -59,10 +59,9 @@ class ComparisonService: ObservableObject {
         do {
             // Fetch data concurrently - no longer need to pre-compute hashes
             async let localPhotosTask = photoLibraryService.fetchNonFavoritePhotos(startDate: startDate, endDate: endDate)
-            async let oneDriveFetchTask: Void = oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
+            async let oneDriveFetchTask = oneDriveService.fetchPhotosFromOneDrive(startDate: startDate, endDate: endDate)
             
-            let (localPhotos, _) = try await (localPhotosTask, oneDriveFetchTask)
-            let oneDriveFiles = oneDriveService.oneDriveFiles
+            let (localPhotos, oneDriveFiles) = try await (localPhotosTask, oneDriveFetchTask)
             
             comparisonProgress = 0.0
             currentPhase = .comparing

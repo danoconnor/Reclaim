@@ -47,7 +47,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // Size is different, but Low sensitivity ignores size
         let oneDriveFile = OneDriveFile(id: "od1", name: oneDriveName, size: 2000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: nil, hashAlgorithm: nil)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -79,7 +79,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // Match name and size
         let oneDriveFile = OneDriveFile(id: "od1", name: oneDriveName, size: 1000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: nil, hashAlgorithm: nil)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -110,7 +110,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // Different size
         let oneDriveFile = OneDriveFile(id: "od1", name: oneDriveName, size: 2000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: nil, hashAlgorithm: nil)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -148,7 +148,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // OneDrive file with matching size and SHA256 hash
         let oneDriveFile = OneDriveFile(id: "od1", name: oneDriveName, size: 1000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: hash, hashAlgorithm: .sha256)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -178,7 +178,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // OneDrive file with matching size and quickXor hash
         let oneDriveFile = OneDriveFile(id: "od1", name: "some_file.jpg", size: 1000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: quickXorHash, hashAlgorithm: .quickXor)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -206,7 +206,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // OneDrive file with matching size but different hash
         let oneDriveFile = OneDriveFile(id: "od1", name: "some_file.jpg", size: 1000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: "completely_different_hash", hashAlgorithm: .sha256)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -234,7 +234,7 @@ class ComparisonServiceTests: XCTestCase {
         
         // OneDrive file with different size — should not match even with correct hash
         let oneDriveFile = OneDriveFile(id: "od1", name: "some_file.jpg", size: 2000, createdDateTime: date, lastModifiedDateTime: date, downloadUrl: nil, hashValue: hash, hashAlgorithm: .sha256)
-        mockOneDriveService.oneDriveFiles = [oneDriveFile]
+        mockOneDriveService.filesToReturn = [oneDriveFile]
         
         // Act
         try await sut.comparePhotos()
@@ -273,7 +273,7 @@ class ComparisonServiceTests: XCTestCase {
         }
         
         mockPhotoLibraryService.fetchNonFavoritePhotosResult = photos
-        mockOneDriveService.oneDriveFiles = oneDriveFiles
+        mockOneDriveService.filesToReturn = oneDriveFiles
         
         // Act
         try await sut.comparePhotos()
@@ -313,7 +313,7 @@ class ComparisonServiceTests: XCTestCase {
         }
         
         mockPhotoLibraryService.fetchNonFavoritePhotosResult = photos
-        mockOneDriveService.oneDriveFiles = oneDriveFiles
+        mockOneDriveService.filesToReturn = oneDriveFiles
         
         // Act
         try await sut.comparePhotos()

@@ -13,7 +13,6 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var oneDriveFiles: [OneDriveFile] = []
     @Published var fetchProgress: Double = 0.0
     @Published var fetchedCount: Int = 0
     @Published var totalCount: Int = 0
@@ -70,7 +69,6 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     func signOut() {
         accessToken = nil
         isAuthenticated = false
-        oneDriveFiles = []
         tokenExpiration = nil
 
         if let account = currentAccount {
@@ -85,7 +83,7 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
     
     // MARK: - Fetch Files
     
-    func fetchPhotosFromOneDrive(startDate: Date? = nil, endDate: Date? = nil) async throws {
+    func fetchPhotosFromOneDrive(startDate: Date? = nil, endDate: Date? = nil) async throws -> [OneDriveFile] {
         let token: String
         if let existing = accessToken, let exp = tokenExpiration, exp.timeIntervalSinceNow > 60 { // token valid >= 60s
             token = existing
@@ -112,8 +110,8 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         
         do {
             let files = try await fetchPhotosFromSpecialView(token: token, startDate: startDate, endDate: endDate)
-            self.oneDriveFiles = files
             isLoading = false
+            return files
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
@@ -152,7 +150,10 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
             let onProgress: (Int, Int) -> Void
             let onTotalUpdate: (Int) -> Void
             
-            init(token: String, startDate: Date?, endDate: Date?, totalItems: Int,
+            init(token: String,
+                 startDate: Date?,
+                 endDate: Date?,
+                 totalItems: Int,
                  onProgress: @escaping (Int, Int) -> Void,
                  onTotalUpdate: @escaping (Int) -> Void) {
                 self.token = token
@@ -232,11 +233,10 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
                 var foldersToFetch: [String] = []
                 
                 // First pass: collect files and identify folders to fetch
-                for child in children {
-                    await updateProgress()
-                    
+                for child in children {                    
                     if let file = OneDriveParser.makeOneDriveFile(from: child, startDate: startDate, endDate: endDate) {
                         if addFile(file) {
+                            await updateProgress()
                             collected.append(file)
                         }
                     } else if child.folder != nil || child.bundle != nil {
@@ -331,6 +331,13 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
 
             if lhsDate != rhsDate { return lhsDate > rhsDate }
             return lhs.id < rhs.id
+        }
+
+        // Make sure the UI knows the final count of files
+        Task { @MainActor in
+            self.fetchProgress = 1.0
+            self.fetchedCount = sortedFiles.count
+            self.totalCount = sortedFiles.count
         }
 
         return sortedFiles

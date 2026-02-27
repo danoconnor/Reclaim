@@ -22,6 +22,7 @@ struct MainView: View {
     @State private var showingPhotoReview = false
     @State private var showingSettings = false
     @State private var showingDeleteConfirmation = false
+    @State private var showingDeletionComplete = false
     @State private var showingError = false
     @State private var errorMessage = ""
     
@@ -100,6 +101,11 @@ struct MainView: View {
                 }
             } message: {
                 Text("Are you sure you want to delete \(comparisonService.deletablePhotosCount) photos? This will free up \(formatBytes(comparisonService.totalDeletableSize)).")
+            }
+            .alert("Deletion Complete", isPresented: $showingDeletionComplete) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Photos have been moved to the Recently Deleted album. To free up storage, go to Settings > General > iPhone Storage > Photos and empty the \"Recently Deleted\" album.")
             }
         }
     }
@@ -378,6 +384,9 @@ struct MainView: View {
         do {
             let photos = comparisonService.getDeletablePhotos()
             _ = try await deletionService.deletePhotos(photos)
+            
+            // Show reminder about Recently Deleted album
+            showingDeletionComplete = true
             
             // Refresh comparison after deletion with same date filter
             let filter = DateRangeFilter(rawValue: dateRangeFilter) ?? .allTime

@@ -15,6 +15,7 @@ struct PhotoReviewView: View {
     
     @State private var selectedPhotos = Set<String>()
     @State private var showingDeleteConfirmation = false
+    @State private var showingDeletionComplete = false
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var selectedPhotoForPreview: PhotoItem?
@@ -89,6 +90,11 @@ struct PhotoReviewView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Deletion Complete", isPresented: $showingDeletionComplete) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Photos have been moved to the Recently Deleted album. To free up storage, go to Settings > General > iPhone Storage > Photos and empty the \"Recently Deleted\" album.")
             }
         }
     }
@@ -207,10 +213,8 @@ struct PhotoReviewView: View {
             // Clear selection
             selectedPhotos.removeAll()
             
-            // Dismiss if no more photos to review
-            if deletableStatuses.isEmpty {
-                dismiss()
-            }
+            // Show reminder about Recently Deleted album
+            showingDeletionComplete = true
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

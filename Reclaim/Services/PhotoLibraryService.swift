@@ -112,7 +112,7 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
                 fetchOptions.predicate = NSPredicate(format: "creationDate <= %@", end as NSDate)
             }
 
-            let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            let fetchResult = PHAsset.fetchAssets(with: fetchOptions)
             
             await MainActor.run {
                 self?.totalPhotoCount = fetchResult.count
@@ -176,6 +176,15 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
             throw PhotoLibraryError.assetNotFound
         }
         
+        switch asset.mediaType {
+        case .video:
+            return try await getVideoData(for: asset)
+        default:
+            return try await getImageData(for: asset)
+        }
+    }
+    
+    private nonisolated func getImageData(for asset: PHAsset) async throws -> Data {
         let options = PHImageRequestOptions()
         options.version = .original
         options.isSynchronous = false
@@ -192,6 +201,29 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
                     continuation.resume(throwing: PhotoLibraryError.failedToFetchData)
                 }
             }
+        }
+    }
+    
+    private nonisolated func getVideoData(for asset: PHAsset) async throws -> Data {
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let videoResource = resources.first(where: { $0.type == .video || $0.type == .fullSizeVideo }) ?? resources.first else {
+            throw PhotoLibraryError.failedToFetchData
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            var videoData = Data()
+            let options = PHAssetResourceRequestOptions()
+            options.isNetworkAccessAllowed = true
+            
+            PHAssetResourceManager.default().requestData(for: videoResource, options: options, dataReceivedHandler: { chunk in
+                videoData.append(chunk)
+            }, completionHandler: { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: videoData)
+                }
+            })
         }
     }
     

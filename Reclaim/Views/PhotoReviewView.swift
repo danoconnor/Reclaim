@@ -12,6 +12,7 @@ struct PhotoReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var comparisonService: ComparisonService
     @ObservedObject var deletionService: DeletionService
+    @ObservedObject var storeService: StoreService
     
     @State private var selectedPhotos = Set<String>()
     @State private var showingDeleteConfirmation = false
@@ -19,6 +20,7 @@ struct PhotoReviewView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var selectedPhotoForPreview: PhotoItem?
+    @State private var showingPaywall = false
     
     private let columns = [
         GridItem(.adaptive(minimum: 100), spacing: 2)
@@ -75,6 +77,9 @@ struct PhotoReviewView: View {
             }
             .sheet(item: $selectedPhotoForPreview) { photo in
                 PhotoPreviewView(photoItem: photo)
+            }
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView(storeService: storeService)
             }
             .alert("Confirm Deletion", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -139,10 +144,20 @@ struct PhotoReviewView: View {
             
             HStack(spacing: 12) {
                 Button {
-                    showingDeleteConfirmation = true
+                    if storeService.isUnlocked {
+                        showingDeleteConfirmation = true
+                    } else {
+                        showingPaywall = true
+                    }
                 } label: {
-                    Label("Delete Selected", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
+                    HStack {
+                        Label("Delete Selected", systemImage: "trash")
+                        if !storeService.isUnlocked {
+                            Image(systemName: "lock.fill")
+                                .font(.caption)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -337,9 +352,11 @@ struct PhotoPreviewView: View {
     let oneDrive = OneDriveService()
     let comparison = ComparisonService(photoLibraryService: photoService, oneDriveService: oneDrive)
     let deletion = DeletionService(photoLibraryService: photoService)
+    let store = StoreService()
     
     return PhotoReviewView(
         comparisonService: comparison,
-        deletionService: deletion
+        deletionService: deletion,
+        storeService: store
     )
 }

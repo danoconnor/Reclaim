@@ -6,12 +6,14 @@
 //
 
 import Photos
+import StoreKit
 import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var photoLibraryService: PhotoLibraryService
     @ObservedObject var oneDriveService: OneDriveService
+    @ObservedObject var storeService: StoreService
     
     @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
     @AppStorage("customStartDate") private var customStartDateTimestamp: Double = 0
@@ -93,6 +95,57 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 } header: {
                     Text("Protection")
+                }
+                
+                // Purchases Section
+                Section {
+                    HStack {
+                        Label("Deletion", systemImage: "trash")
+                        Spacer()
+                        if storeService.isUnlocked {
+                            Label("Unlocked", systemImage: "checkmark.seal.fill")
+                                .foregroundColor(.green)
+                                .labelStyle(.titleAndIcon)
+                        } else {
+                            Text("Locked")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    if !storeService.isUnlocked {
+                        if let product = storeService.product {
+                            Button {
+                                Task {
+                                    try? await storeService.purchase()
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Unlock Deletion")
+                                    Spacer()
+                                    Text(product.displayPrice)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .disabled(storeService.isPurchasing)
+                        }
+                    }
+                    
+                    Button {
+                        Task {
+                            await storeService.restorePurchase()
+                        }
+                    } label: {
+                        Text("Restore Purchase")
+                    }
+                    .disabled(storeService.isPurchasing)
+                    
+                    if let error = storeService.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                } header: {
+                    Text("Purchases")
                 }
                 
                 // About Section
@@ -235,9 +288,11 @@ enum DateRangeFilter: String, CaseIterable {
 #Preview {
     let photoService = PhotoLibraryService()
     let oneDrive = OneDriveService()
+    let store = StoreService()
     
     return SettingsView(
         photoLibraryService: photoService,
-        oneDriveService: oneDrive
+        oneDriveService: oneDrive,
+        storeService: store
     )
 }

@@ -14,6 +14,7 @@ struct MainView: View {
     @StateObject private var oneDriveService = OneDriveService()
     @StateObject private var comparisonService: ComparisonService
     @StateObject private var deletionService: DeletionService
+    @StateObject private var storeService = StoreService()
     
     @AppStorage("dateRangeFilter") private var dateRangeFilter = DateRangeFilter.allTime.rawValue
     @AppStorage("customStartDate") private var customStartDateTimestamp: Double = 0
@@ -25,6 +26,7 @@ struct MainView: View {
     @State private var showingDeletionComplete = false
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var showingPaywall = false
     
     init() {
         let photoService = PhotoLibraryService()
@@ -78,14 +80,23 @@ struct MainView: View {
             .sheet(isPresented: $showingPhotoReview) {
                 PhotoReviewView(
                     comparisonService: comparisonService,
-                    deletionService: deletionService
+                    deletionService: deletionService,
+                    storeService: storeService
                 )
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(
                     photoLibraryService: photoLibraryService,
-                    oneDriveService: oneDriveService
+                    oneDriveService: oneDriveService,
+                    storeService: storeService
                 )
+            }
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView(storeService: storeService)
+            }
+            .task {
+                await storeService.loadProduct()
+                await storeService.checkEntitlements()
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) {}
@@ -285,10 +296,20 @@ struct MainView: View {
             
             // Quick Delete
             Button {
-                showingDeleteConfirmation = true
+                if storeService.isUnlocked {
+                    showingDeleteConfirmation = true
+                } else {
+                    showingPaywall = true
+                }
             } label: {
-                Label("Delete All Synced Photos", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
+                HStack {
+                    Label("Delete All Synced Photos", systemImage: "trash")
+                    if !storeService.isUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)

@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import Photos
+import StoreKit
 import UIKit
 
 protocol PhotoLibraryServiceProtocol: AnyObject {
@@ -24,4 +25,16 @@ protocol OneDriveServiceProtocol: AnyObject {
     var fetchedCount: Int { get }
     var totalCount: Int { get }
     func fetchPhotosFromOneDrive(startDate: Date?, endDate: Date?) async throws -> [OneDriveFile]
+}
+
+@MainActor
+protocol StoreServiceProtocol: AnyObject, ObservableObject {
+    var isUnlocked: Bool { get }
+    var product: Product? { get }
+    var isPurchasing: Bool { get }
+    var errorMessage: String? { get set }
+    func loadProduct() async
+    func checkEntitlements() async
+    func purchase() async throws
+    func restorePurchase() async
 }

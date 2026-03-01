@@ -1,0 +1,48 @@
+{
+  "identifier" : "8A3F4B2C-1D5E-4A6B-9C7D-0E8F1A2B3C4D",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "D1E2F3A4-5B6C-7D8E-9F0A-1B2C3D4E5F6A",
+      "localizations" : [
+        {
+          "description" : "Unlock the ability to delete synced photos from your device.",
+          "displayName" : "Unlock Deletion",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.danoconnor.Reclaim.unlockDeletion",
+      "referenceName" : "Unlock Deletion",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1234567890",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : "",
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "setting" : "ask-to-buy"
+      },
+      {
+        "current" : null,
+        "setting" : "subscription-renewal"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

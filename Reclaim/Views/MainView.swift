@@ -41,7 +41,7 @@ struct MainView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 20) {
                 // Status Section
                 statusSection

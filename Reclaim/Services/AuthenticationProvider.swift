@@ -64,19 +64,25 @@ final class MSALAuthenticationProvider: AuthenticationProvider, @unchecked Senda
     func acquireInteractiveToken() async throws -> AuthToken {
         guard let app = msalApp else { throw OneDriveError.notImplemented }
         
-        #if os(iOS)
-        let rootVC = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }?.rootViewController ?? UIViewController()
-        let webParameters = MSALWebviewParameters(authPresentationViewController: rootVC)
-        #elseif os(macOS)
-        // Assuming this code is shared, but the project seems to be iOS focused based on imports.
-        // Keeping it simple for now as per existing OneDriveService
-        let webParameters = MSALWebviewParameters(authPresentationViewController: UIViewController())
-        #else
-        let webParameters = MSALWebviewParameters(authPresentationViewController: UIViewController())
-        #endif
+        let presentingVC = await MainActor.run {
+            let rootVC = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .filter { $0.activationState == .foregroundActive }
+                .first?
+                .keyWindow?
+                .rootViewController
+
+            // Walk up the presentation chain to find the topmost visible VC,
+            // otherwise presenting fails silently on iPad.
+            var topVC = rootVC
+            while let presented = topVC?.presentedViewController {
+                topVC = presented
+            }
+
+            return topVC ?? UIViewController()
+        }
+
+        let webParameters = MSALWebviewParameters(authPresentationViewController: presentingVC)
 
         let interactiveParameters = MSALInteractiveTokenParameters(scopes: scopes, webviewParameters: webParameters)
         interactiveParameters.promptType = .selectAccount

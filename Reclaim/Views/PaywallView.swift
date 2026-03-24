@@ -73,6 +73,7 @@ struct PaywallView: View {
                     .controlSize(.large)
                     .disabled(storeService.isPurchasing)
                     .padding(.horizontal)
+                    .accessibilityIdentifier("purchaseButton")
                 } else {
                     ProgressView("Loading...")
                 }
@@ -90,6 +91,7 @@ struct PaywallView: View {
                         .font(.subheadline)
                 }
                 .disabled(storeService.isPurchasing)
+                .accessibilityIdentifier("paywallRestoreButton")
                 
                 // Error message
                 if let error = storeService.errorMessage {
@@ -108,6 +110,7 @@ struct PaywallView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("paywallCancelButton")
                 }
             }
             .task {

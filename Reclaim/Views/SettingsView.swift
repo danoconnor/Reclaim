@@ -185,6 +185,7 @@ struct SettingsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("settingsDoneButton")
                 }
             }
             .onAppear {

@@ -20,9 +20,23 @@ class StoreService: ObservableObject {
     
     private var transactionListener: Task<Void, Error>?
     
+    private var isDemoMode = false
+    
     init() {
         transactionListener = listenForTransactions()
     }
+    
+    #if DEBUG
+    /// Creates a demo StoreService with pre-configured state for UI tests/screenshots
+    static func demo(isUnlocked: Bool) -> StoreService {
+        let service = StoreService()
+        service.isDemoMode = true
+        service.isUnlocked = isUnlocked
+        service.transactionListener?.cancel()
+        service.transactionListener = nil
+        return service
+    }
+    #endif
     
     deinit {
         transactionListener?.cancel()
@@ -31,6 +45,7 @@ class StoreService: ObservableObject {
     // MARK: - Load Product
     
     func loadProduct() async {
+        guard !isDemoMode else { return }
         do {
             let products = try await Product.products(for: [Self.productID])
             product = products.first
@@ -42,6 +57,7 @@ class StoreService: ObservableObject {
     // MARK: - Check Entitlements
     
     func checkEntitlements() async {
+        guard !isDemoMode else { return }
         for await result in Transaction.currentEntitlements {
             if case .verified(let transaction) = result,
                transaction.productID == Self.productID,

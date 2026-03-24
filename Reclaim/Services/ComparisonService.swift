@@ -43,6 +43,15 @@ class ComparisonService: ObservableObject {
         self.oneDriveService = oneDriveService
     }
     
+    #if DEBUG
+    /// Creates a demo ComparisonService with pre-configured sync statuses for UI tests/screenshots
+    static func demo(photoLibraryService: PhotoLibraryServiceProtocol, oneDriveService: OneDriveServiceProtocol, syncStatuses: [SyncStatus]) -> ComparisonService {
+        let service = ComparisonService(photoLibraryService: photoLibraryService, oneDriveService: oneDriveService)
+        service.syncStatuses = syncStatuses
+        return service
+    }
+    #endif
+    
     // MARK: - Comparison
     
     func comparePhotos(startDate: Date? = nil, endDate: Date? = nil) async throws {

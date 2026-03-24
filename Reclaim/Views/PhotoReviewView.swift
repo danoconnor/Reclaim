@@ -58,6 +58,7 @@ struct PhotoReviewView: View {
                             }
                         }
                         .padding(2)
+                        .accessibilityIdentifier("photoGrid")
                     }
                 }
                 
@@ -113,11 +114,13 @@ struct PhotoReviewView: View {
             } label: {
                 Text("Select All")
             }
+            .accessibilityIdentifier("selectAllButton")
             
             Spacer()
             
             Text("\(selectedPhotos.count) selected")
                 .foregroundColor(.secondary)
+                .accessibilityIdentifier("selectedCount")
             
             Spacer()
             
@@ -126,6 +129,7 @@ struct PhotoReviewView: View {
             } label: {
                 Text("Deselect All")
             }
+            .accessibilityIdentifier("deselectAllButton")
         }
         .padding()
         .background(Color(.systemGray6))
@@ -162,6 +166,7 @@ struct PhotoReviewView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
                 .disabled(selectedPhotos.isEmpty || deletionService.isDeleting)
+                .accessibilityIdentifier("deleteSelectedButton")
                 
                 Button {
                     dismiss()
@@ -170,6 +175,7 @@ struct PhotoReviewView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityIdentifier("doneButton")
             }
             .padding()
         }
@@ -288,13 +294,65 @@ struct PhotoGridCell: View {
     }
     
     private func loadThumbnail() async {
+        // If there's no PHAsset (e.g. demo mode), generate a placeholder
+        guard photoItem.asset != nil else {
+            thumbnail = Self.generatePlaceholder(for: photoItem)
+            return
+        }
+        
         let service = PhotoLibraryService()
         do {
             let image = try await service.getThumbnail(for: photoItem, size: CGSize(width: 200, height: 200))
             thumbnail = image
         } catch {
-            // Failed to load thumbnail
-            print("Failed to load thumbnail: \(error)")
+            // Failed to load thumbnail — use placeholder as fallback
+            thumbnail = Self.generatePlaceholder(for: photoItem)
+        }
+    }
+    
+    /// Generates a colored placeholder image based on the photo item's ID
+    private static func generatePlaceholder(for photo: PhotoItem) -> UIImage {
+        let size = CGSize(width: 200, height: 200)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            // Generate a deterministic color from the ID hash
+            let hash = abs(photo.id.hashValue)
+            let hue = CGFloat(hash % 360) / 360.0
+            let saturation = CGFloat(40 + (hash / 360) % 30) / 100.0
+            let brightness = CGFloat(65 + (hash / 10800) % 25) / 100.0
+            
+            let baseColor = UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1.0)
+            let lighterColor = UIColor(hue: hue, saturation: max(0, saturation - 0.15), brightness: min(1, brightness + 0.2), alpha: 1.0)
+            
+            // Draw gradient background
+            let colors = [lighterColor.cgColor, baseColor.cgColor]
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            if let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: [0, 1]) {
+                context.cgContext.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: 0),
+                    end: CGPoint(x: size.width, y: size.height),
+                    options: []
+                )
+            }
+            
+            // Draw a subtle landscape icon in the center
+            let iconRect = CGRect(x: size.width * 0.25, y: size.height * 0.3, width: size.width * 0.5, height: size.height * 0.4)
+            UIColor.white.withAlphaComponent(0.3).setFill()
+            
+            // Mountain shape
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: iconRect.minX, y: iconRect.maxY))
+            path.addLine(to: CGPoint(x: iconRect.midX - 15, y: iconRect.minY + 10))
+            path.addLine(to: CGPoint(x: iconRect.midX + 5, y: iconRect.midY))
+            path.addLine(to: CGPoint(x: iconRect.maxX - 10, y: iconRect.minY + 20))
+            path.addLine(to: CGPoint(x: iconRect.maxX, y: iconRect.maxY))
+            path.close()
+            path.fill()
+            
+            // Sun circle
+            let sunRect = CGRect(x: iconRect.maxX - 30, y: iconRect.minY - 10, width: 24, height: 24)
+            UIBezierPath(ovalIn: sunRect).fill()
         }
     }
 }

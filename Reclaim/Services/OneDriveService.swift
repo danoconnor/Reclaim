@@ -34,6 +34,17 @@ class OneDriveService: ObservableObject, OneDriveServiceProtocol {
         }
     }
     
+    #if DEBUG
+    /// Creates a demo OneDriveService with pre-configured state for UI tests/screenshots
+    static func demo(fileCount: Int) -> OneDriveService {
+        let service = OneDriveService(authProvider: DemoAuthenticationProvider())
+        service.isAuthenticated = true
+        service.fetchedCount = fileCount
+        service.totalCount = fileCount
+        return service
+    }
+    #endif
+    
     // MARK: - Authentication
     
     func restoreSession() async {

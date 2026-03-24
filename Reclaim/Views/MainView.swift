@@ -40,6 +40,23 @@ struct MainView: View {
         _deletionService = StateObject(wrappedValue: deletion)
     }
     
+    #if DEBUG
+    /// Initializer for demo/UI test mode with pre-configured services
+    init(
+        photoLibraryService: PhotoLibraryService,
+        oneDriveService: OneDriveService,
+        comparisonService: ComparisonService,
+        deletionService: DeletionService,
+        storeService: StoreService
+    ) {
+        _photoLibraryService = StateObject(wrappedValue: photoLibraryService)
+        _oneDriveService = StateObject(wrappedValue: oneDriveService)
+        _comparisonService = StateObject(wrappedValue: comparisonService)
+        _deletionService = StateObject(wrappedValue: deletionService)
+        _storeService = StateObject(wrappedValue: storeService)
+    }
+    #endif
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
@@ -75,6 +92,7 @@ struct MainView: View {
                     } label: {
                         Image(systemName: "gear")
                     }
+                    .accessibilityIdentifier("settingsButton")
                 }
             }
             .sheet(isPresented: $showingPhotoReview) {
@@ -213,6 +231,7 @@ struct MainView: View {
                     value: "\(photoLibraryService.loadedPhotoCount)",
                     icon: "photo.on.rectangle"
                 )
+                .accessibilityIdentifier("stat_localPhotos")
                 
                 StatisticView(
                     title: "OneDrive Photos",
@@ -220,6 +239,7 @@ struct MainView: View {
                     icon: "cloud.fill",
                     color: .green
                 )
+                .accessibilityIdentifier("stat_oneDrivePhotos")
             }
             
             HStack {
@@ -230,6 +250,7 @@ struct MainView: View {
                     color: .orange,
                     isLoading: comparisonService.isComparing
                 )
+                .accessibilityIdentifier("stat_canDelete")
                 
                 StatisticView(
                     title: "Space to Free",
@@ -238,8 +259,11 @@ struct MainView: View {
                     color: .blue,
                     isLoading: comparisonService.isComparing
                 )
+                .accessibilityIdentifier("stat_spaceToFree")
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("statisticsSection")
     }
     
     // MARK: - Action Buttons
@@ -257,6 +281,7 @@ struct MainView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("allowPhotoAccessButton")
             }
             
             // Sign in to OneDrive
@@ -270,6 +295,7 @@ struct MainView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("signInOneDriveButton")
             }
             
             // Start Scan
@@ -283,6 +309,7 @@ struct MainView: View {
             }
             .buttonStyle(.bordered)
             .disabled(!canStartScan || comparisonService.isComparing)
+            .accessibilityIdentifier("scanButton")
             
             // Review Photos
             Button {
@@ -293,6 +320,7 @@ struct MainView: View {
             }
             .buttonStyle(.bordered)
             .disabled(comparisonService.deletablePhotosCount == 0)
+            .accessibilityIdentifier("reviewPhotosButton")
             
             // Quick Delete
             Button {
@@ -314,6 +342,7 @@ struct MainView: View {
             .buttonStyle(.borderedProminent)
             .tint(.red)
             .disabled(comparisonService.deletablePhotosCount == 0 || deletionService.isDeleting)
+            .accessibilityIdentifier("deleteAllButton")
         }
     }
     

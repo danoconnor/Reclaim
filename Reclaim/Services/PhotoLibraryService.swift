@@ -22,6 +22,17 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
         self.authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     }
     
+    #if DEBUG
+    /// Creates a demo PhotoLibraryService with pre-configured state for UI tests/screenshots
+    static func demo(photoCount: Int) -> PhotoLibraryService {
+        let service = PhotoLibraryService()
+        service.authorizationStatus = .authorized
+        service.loadedPhotoCount = photoCount
+        service.totalPhotoCount = photoCount
+        return service
+    }
+    #endif
+    
     // MARK: - Authorization
     
     func requestAuthorization() async -> Bool {

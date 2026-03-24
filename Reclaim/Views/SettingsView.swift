@@ -174,6 +174,15 @@ struct SettingsView: View {
                                 .font(.caption)
                         }
                     }
+                    
+                    Link(destination: URL(string: "https://danoconnor.github.io/reclaim/privacypolicy")!) {
+                        HStack {
+                            Text("Privacy Policy")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                        }
+                    }
                 } header: {
                     Text("About")
                 }

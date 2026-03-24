@@ -175,7 +175,7 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Link(destination: URL(string: "https://danoconnor.github.io/reclaim/privacypolicy")!) {
+                    Link(destination: URL(string: "https://danoconnor.github.io/Reclaim/privacyPolicy")!) {
                         HStack {
                             Text("Privacy Policy")
                             Spacer()

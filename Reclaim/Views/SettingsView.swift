@@ -153,20 +153,29 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("1.0.0")
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")
                             .foregroundColor(.secondary)
                     }
-                    
-                    Link(destination: URL(string: "https://github.com/danoconnor/Reclaim")!) {
+
+                    Link(destination: URL(string: "https://danoconnor.github.io/Reclaim/privacyPolicy")!) {
                         HStack {
-                            Text("GitHub Repository")
+                            Text("Reclaim Privacy Policy")
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)
                         }
                     }
                     
-                    Link(destination: URL(string: "https://support.microsoft.com")!) {
+                    Link(destination: URL(string: "https://github.com/danoconnor/Reclaim")!) {
+                        HStack {
+                            Text("Reclaim GitHub Repository")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                        }
+                    }
+                    
+                    Link(destination: URL(string: "https://support.microsoft.com/en-us/onedrive")!) {
                         HStack {
                             Text("OneDrive Help")
                             Spacer()
@@ -175,9 +184,9 @@ struct SettingsView: View {
                         }
                     }
                     
-                    Link(destination: URL(string: "https://danoconnor.github.io/Reclaim/privacyPolicy")!) {
+                    Link(destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!) {
                         HStack {
-                            Text("Privacy Policy")
+                            Text("Terms of Use)")
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption)

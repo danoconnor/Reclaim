@@ -50,6 +50,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 17" 2>/dev/null || true
+          xcrun simctl bootstatus "iPhone 17" -b
+
       - name: Run UI tests
         run: |
           xcodebuild test \
@@ -57,4 +62,5 @@ jobs:
             -scheme Reclaim \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
             -only-testing:ReclaimUITests \
-            -clonedSourcePackagesDirPath .spm-packages
+            -clonedSourcePackagesDirPath .spm-packages \
+            -parallel-testing-enabled NO

@@ -1,0 +1,60 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: .spm-packages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project Reclaim.xcodeproj \
+            -scheme Reclaim \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -only-testing:ReclaimTests \
+            -clonedSourcePackagesDirPath .spm-packages
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: .spm-packages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Run UI tests
+        run: |
+          xcodebuild test \
+            -project Reclaim.xcodeproj \
+            -scheme Reclaim \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -only-testing:ReclaimUITests \
+            -clonedSourcePackagesDirPath .spm-packages

@@ -7,6 +7,7 @@
 
 #if DEBUG
 import Foundation
+import Photos
 
 /// Provides demo data for UI tests and App Store screenshots
 @MainActor
@@ -20,6 +21,14 @@ enum DemoDataProvider {
     /// Checks whether the deletion feature should appear unlocked
     static var isUnlocked: Bool {
         ProcessInfo.processInfo.arguments.contains("-Unlocked")
+    }
+
+    /// Returns the photo library authorization status to simulate
+    static var photoAuthorizationStatus: PHAuthorizationStatus {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-PhotoAccessDenied") { return .denied }
+        if args.contains("-PhotoAccessLimited") { return .limited }
+        return .authorized
     }
     
     // MARK: - Demo Service Factory
@@ -35,7 +44,7 @@ enum DemoDataProvider {
         let demoPhotos = generateDemoPhotos()
         let syncStatuses = generateDemoSyncStatuses(from: demoPhotos)
         
-        let photoService = PhotoLibraryService.demo(photoCount: demoPhotos.count)
+        let photoService = PhotoLibraryService.demo(photoCount: demoPhotos.count, authorizationStatus: photoAuthorizationStatus)
         let oneDriveService = OneDriveService.demo(fileCount: demoPhotos.count + 3_840)
         let comparisonService = ComparisonService.demo(
             photoLibraryService: photoService,

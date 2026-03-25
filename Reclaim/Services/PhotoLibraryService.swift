@@ -24,11 +24,11 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     
     #if DEBUG
     /// Creates a demo PhotoLibraryService with pre-configured state for UI tests/screenshots
-    static func demo(photoCount: Int) -> PhotoLibraryService {
+    static func demo(photoCount: Int, authorizationStatus: PHAuthorizationStatus = .authorized) -> PhotoLibraryService {
         let service = PhotoLibraryService()
-        service.authorizationStatus = .authorized
-        service.loadedPhotoCount = photoCount
-        service.totalPhotoCount = photoCount
+        service.authorizationStatus = authorizationStatus
+        service.loadedPhotoCount = authorizationStatus == .authorized || authorizationStatus == .limited ? photoCount : 0
+        service.totalPhotoCount = authorizationStatus == .authorized || authorizationStatus == .limited ? photoCount : 0
         return service
     }
     #endif

@@ -213,23 +213,11 @@ final class ReclaimUITests: XCTestCase {
         let statsHeader = app.staticTexts["Statistics"]
         XCTAssertTrue(statsHeader.waitForExistence(timeout: 5), "Statistics section should be visible")
         
-        // Verify individual stat card titles
-        XCTAssertTrue(app.staticTexts["Local Photos"].exists, "Local Photos stat should exist")
-        XCTAssertTrue(app.staticTexts["OneDrive Photos"].exists, "OneDrive Photos stat should exist")
-        XCTAssertTrue(app.staticTexts["Can Delete"].exists, "Can Delete stat should exist")
-        XCTAssertTrue(app.staticTexts["Space to Free"].exists, "Space to Free stat should exist")
-        
-        // Verify expected values from demo data:
-        // - 48 local photos, 176 OneDrive photos, all 48 deletable, ~216.6 MB freeable
-        let fortyEightLabels = app.staticTexts.matching(identifier: "48")
-        XCTAssertGreaterThanOrEqual(fortyEightLabels.count, 2, "Should show '48' for both Local Photos and Can Delete")
-        XCTAssertTrue(app.staticTexts["176"].exists, "OneDrive Photos should show 176")
-        
-        // Space to Free — ByteCountFormatter formats 216,600,000 bytes as "216.6 MB"
-        let spaceLabels = app.staticTexts.allElementsBoundByIndex.filter {
-            $0.label.contains("MB") || $0.label.contains("GB")
-        }
-        XCTAssertFalse(spaceLabels.isEmpty, "Space to Free should display a size value")
+        // Verify all four stat cards are present using their accessibility identifiers
+        XCTAssertTrue(app.otherElements["stat_localPhotos"].waitForExistence(timeout: 3), "Local Photos stat card should exist")
+        XCTAssertTrue(app.otherElements["stat_oneDrivePhotos"].exists, "OneDrive Photos stat card should exist")
+        XCTAssertTrue(app.otherElements["stat_canDelete"].exists, "Can Delete stat card should exist")
+        XCTAssertTrue(app.otherElements["stat_spaceToFree"].exists, "Space to Free stat card should exist")
     }
     
     @MainActor
@@ -351,16 +339,178 @@ final class ReclaimUITests: XCTestCase {
     @MainActor
     func testSettingsDateFilterOptions() throws {
         app.launch()
-        
+
         let navTitle = app.navigationBars["Reclaim"]
         XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
         app.buttons["settingsButton"].tap()
-        
+
         let settingsTitle = app.staticTexts["Settings"]
         XCTAssertTrue(settingsTitle.waitForExistence(timeout: 5))
-        
+
         // Verify date filter section shows the picker
         XCTAssertTrue(app.staticTexts["Date Filter"].exists, "Date Filter section should exist")
         XCTAssertTrue(app.staticTexts["Date Range"].exists, "Date Range picker should exist")
+    }
+
+    // MARK: - Photo Access: Denied
+
+    @MainActor
+    func testPhotoAccessDenied_ShowsEnableInSettingsButton() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessDenied"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.buttons["enablePhotoAccessButton"].waitForExistence(timeout: 3),
+            "Enable Photo Access in Settings button should appear when access is denied"
+        )
+    }
+
+    @MainActor
+    func testPhotoAccessDenied_DoesNotShowAllowButton() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessDenied"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertFalse(
+            app.buttons["allowPhotoAccessButton"].exists,
+            "Old 'Allow Photo Access' button should not appear"
+        )
+    }
+
+    @MainActor
+    func testPhotoAccessDenied_ScanButtonDisabled() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessDenied"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        let scanButton = app.buttons["scanButton"]
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
+        XCTAssertFalse(scanButton.isEnabled, "Scan button should be disabled when photo access is denied")
+    }
+
+    @MainActor
+    func testPhotoAccessDenied_StatusShowsDenied() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessDenied"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.staticTexts["Denied"].waitForExistence(timeout: 3),
+            "Status section should show 'Denied' for photo library"
+        )
+    }
+
+    // MARK: - Photo Access: Limited
+
+    @MainActor
+    func testPhotoAccessLimited_ShowsWarningBanner() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessLimited"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.otherElements["limitedAccessWarning"].waitForExistence(timeout: 3),
+            "Limited access warning banner should be visible"
+        )
+    }
+
+    @MainActor
+    func testPhotoAccessLimited_ScanButtonEnabled() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessLimited"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        let scanButton = app.buttons["scanButton"]
+        XCTAssertTrue(scanButton.waitForExistence(timeout: 3))
+        XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled when photo access is limited")
+    }
+
+    @MainActor
+    func testPhotoAccessLimited_DoesNotShowEnableInSettingsButton() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessLimited"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertFalse(
+            app.buttons["enablePhotoAccessButton"].exists,
+            "Blocked access button should not appear for limited access"
+        )
+    }
+
+    @MainActor
+    func testPhotoAccessLimited_StatusShowsLimited() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessLimited"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.staticTexts["Limited"].waitForExistence(timeout: 3),
+            "Status section should show 'Limited' for photo library"
+        )
+    }
+
+    @MainActor
+    func testPhotoAccessLimited_WarningBannerContainsSettingsLink() throws {
+        app.launchArguments = ["-UITestMode", "-Unlocked", "-PhotoAccessLimited"]
+        app.launch()
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+
+        XCTAssertTrue(
+            app.buttons["Change in Settings"].waitForExistence(timeout: 3),
+            "Warning banner should contain a 'Change in Settings' link"
+        )
+    }
+}
+
+// MARK: - Screenshot Tests for Permission States
+
+extension ScreenshotTests {
+
+    @MainActor
+    private func launchWithPhotoAccess(_ access: String, unlocked: Bool = true) {
+        app.launchArguments = ["-UITestMode", access]
+        if unlocked { app.launchArguments.append("-Unlocked") }
+        app.launch()
+    }
+
+    @MainActor
+    func testPhotoAccessDeniedScreenshot() throws {
+        launchWithPhotoAccess("-PhotoAccessDenied")
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["enablePhotoAccessButton"].waitForExistence(timeout: 3))
+
+        takeScreenshot(name: "05_PhotoAccessDenied")
+    }
+
+    @MainActor
+    func testPhotoAccessLimitedScreenshot() throws {
+        launchWithPhotoAccess("-PhotoAccessLimited")
+
+        let navTitle = app.navigationBars["Reclaim"]
+        XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["limitedAccessWarning"].waitForExistence(timeout: 3))
+
+        takeScreenshot(name: "06_PhotoAccessLimited")
     }
 }

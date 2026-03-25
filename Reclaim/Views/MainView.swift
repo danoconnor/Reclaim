@@ -27,7 +27,9 @@ struct MainView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingPaywall = false
-    
+
+    @Environment(\.openURL) private var openURL
+
     init() {
         let photoService = PhotoLibraryService()
         let oneDrive = OneDriveService()
@@ -115,6 +117,9 @@ struct MainView: View {
             .task {
                 await storeService.loadProduct()
                 await storeService.checkEntitlements()
+                if photoLibraryService.authorizationStatus == .notDetermined {
+                    _ = await photoLibraryService.requestAuthorization()
+                }
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK", role: .cancel) {}
@@ -145,12 +150,32 @@ struct MainView: View {
         VStack(spacing: 12) {
             // Photo Library Status
             HStack {
-                Image(systemName: photoLibraryService.authorizationStatus == .authorized ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(photoLibraryService.authorizationStatus == .authorized ? .green : .red)
+                Image(systemName: photoLibraryStatusIcon)
+                    .foregroundColor(photoLibraryStatusColor)
                 Text("Photo Library")
                 Spacer()
                 Text(authorizationStatusText)
                     .foregroundColor(.secondary)
+            }
+
+            if photoLibraryService.authorizationStatus == .limited {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.caption)
+                    Text("Only selected photos will be scanned.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Change in Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            openURL(url)
+                        }
+                    }
+                    .font(.caption)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("limitedAccessWarning")
             }
             
             // OneDrive Status
@@ -231,14 +256,16 @@ struct MainView: View {
                     value: "\(photoLibraryService.loadedPhotoCount)",
                     icon: "photo.on.rectangle"
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("stat_localPhotos")
-                
+
                 StatisticView(
                     title: "OneDrive Photos",
                     value: "\(oneDriveService.fetchedCount)",
                     icon: "cloud.fill",
                     color: .green
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("stat_oneDrivePhotos")
             }
             
@@ -250,8 +277,9 @@ struct MainView: View {
                     color: .orange,
                     isLoading: comparisonService.isComparing
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("stat_canDelete")
-                
+
                 StatisticView(
                     title: "Space to Free",
                     value: formatBytes(comparisonService.totalDeletableSize),
@@ -259,6 +287,7 @@ struct MainView: View {
                     color: .blue,
                     isLoading: comparisonService.isComparing
                 )
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("stat_spaceToFree")
             }
         }
@@ -270,20 +299,20 @@ struct MainView: View {
     
     private var actionButtons: some View {
         VStack(spacing: 12) {
-            // Request Photo Library Access
-            if photoLibraryService.authorizationStatus != .authorized {
+            // Photo Library Access Denied
+            if photoLibraryService.authorizationStatus == .denied || photoLibraryService.authorizationStatus == .restricted {
                 Button {
-                    Task {
-                        await requestPhotoLibraryAccess()
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        openURL(url)
                     }
                 } label: {
-                    Label("Allow Photo Access", systemImage: "photo.on.rectangle")
+                    Label("Enable Photo Access in Settings", systemImage: "gear")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("allowPhotoAccessButton")
+                .accessibilityIdentifier("enablePhotoAccessButton")
             }
-            
+
             // Sign in to OneDrive
             if !oneDriveService.isAuthenticated {
                 Button {
@@ -366,7 +395,23 @@ struct MainView: View {
     }
     
     private var canStartScan: Bool {
-        photoLibraryService.authorizationStatus == .authorized && oneDriveService.isAuthenticated
+        (photoLibraryService.authorizationStatus == .authorized || photoLibraryService.authorizationStatus == .limited) && oneDriveService.isAuthenticated
+    }
+
+    private var photoLibraryStatusIcon: String {
+        switch photoLibraryService.authorizationStatus {
+        case .authorized: return "checkmark.circle.fill"
+        case .limited: return "exclamationmark.circle.fill"
+        default: return "xmark.circle.fill"
+        }
+    }
+
+    private var photoLibraryStatusColor: Color {
+        switch photoLibraryService.authorizationStatus {
+        case .authorized: return .green
+        case .limited: return .orange
+        default: return .red
+        }
     }
     
     private var isDateFilterActive: Bool {
@@ -394,14 +439,6 @@ struct MainView: View {
     }
     
     // MARK: - Actions
-    
-    private func requestPhotoLibraryAccess() async {
-        let granted = await photoLibraryService.requestAuthorization()
-        if !granted {
-            errorMessage = "Photo library access was not granted. Please enable it in Settings."
-            showingError = true
-        }
-    }
     
     private func signInToOneDrive() async {
         do {

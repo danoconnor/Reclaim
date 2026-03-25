@@ -11,7 +11,11 @@ import Photos
 
 class MockPhotoLibraryService: PhotoLibraryServiceProtocol {
     private let lock = NSLock()
-    
+
+    var authorizationStatus: PHAuthorizationStatus = .notDetermined
+    var requestAuthorizationResult: Bool = true
+    var requestAuthorizationCalled: Bool = false
+
     var loadedPhotoCount: Int = 0
     var totalPhotoCount: Int = 0
     
@@ -45,6 +49,16 @@ class MockPhotoLibraryService: PhotoLibraryServiceProtocol {
         set { lock.withLock { _fetchNonFavoritePhotosCalled = newValue } }
     }
     
+    func requestAuthorization() async -> Bool {
+        requestAuthorizationCalled = true
+        if requestAuthorizationResult {
+            authorizationStatus = .authorized
+        } else {
+            authorizationStatus = .denied
+        }
+        return requestAuthorizationResult
+    }
+
     func fetchNonFavoritePhotos(startDate: Date?, endDate: Date?) async throws -> [PhotoItem] {
         self.fetchNonFavoritePhotosCalled = true
         return self.fetchNonFavoritePhotosResult

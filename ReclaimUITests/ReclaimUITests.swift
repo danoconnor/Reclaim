@@ -223,23 +223,31 @@ final class ReclaimUITests: XCTestCase {
     @MainActor
     func testOpenSettings() throws {
         app.launch()
-        
+
         let navTitle = app.navigationBars["Reclaim"]
         XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
-        
+
         app.buttons["settingsButton"].tap()
-        
-        // Verify settings screen appears
-        let settingsTitle = app.staticTexts["Settings"]
-        XCTAssertTrue(settingsTitle.waitForExistence(timeout: 5), "Settings screen should appear")
-        
-        // Verify key sections exist
-        XCTAssertTrue(app.staticTexts["Accounts"].exists, "Accounts section should exist")
-        XCTAssertTrue(app.staticTexts["Date Filter"].exists, "Date Filter section should exist")
-        XCTAssertTrue(app.staticTexts["Protection"].exists, "Protection section should exist")
-        XCTAssertTrue(app.staticTexts["Purchases"].exists, "Purchases section should exist")
-        XCTAssertTrue(app.staticTexts["About"].exists, "About section should exist")
-        
+
+        // Wait for the Settings navigation bar — more reliable than a text label
+        let settingsNavBar = app.navigationBars["Settings"]
+        XCTAssertTrue(settingsNavBar.waitForExistence(timeout: 5), "Settings screen should appear")
+
+        // Scope searches to the form (SwiftUI Form = UITableView) to avoid
+        // accessibility tree scoping issues on iOS 18
+        let settingsForm = app.tables.firstMatch
+
+        // Verify top sections (always visible)
+        XCTAssertTrue(settingsForm.staticTexts["Accounts"].waitForExistence(timeout: 3), "Accounts section should exist")
+        XCTAssertTrue(settingsForm.staticTexts["Date Filter"].waitForExistence(timeout: 3), "Date Filter section should exist")
+
+        // Scroll to reveal lower sections before checking them
+        settingsForm.swipeUp()
+
+        XCTAssertTrue(settingsForm.staticTexts["Protection"].waitForExistence(timeout: 3), "Protection section should exist")
+        XCTAssertTrue(settingsForm.staticTexts["Purchases"].waitForExistence(timeout: 3), "Purchases section should exist")
+        XCTAssertTrue(settingsForm.staticTexts["About"].waitForExistence(timeout: 3), "About section should exist")
+
         // Close settings
         app.buttons["settingsDoneButton"].tap()
         XCTAssertTrue(navTitle.waitForExistence(timeout: 3), "Should return to main screen")
@@ -344,12 +352,15 @@ final class ReclaimUITests: XCTestCase {
         XCTAssertTrue(navTitle.waitForExistence(timeout: 5))
         app.buttons["settingsButton"].tap()
 
-        let settingsTitle = app.staticTexts["Settings"]
-        XCTAssertTrue(settingsTitle.waitForExistence(timeout: 5))
+        let settingsNavBar = app.navigationBars["Settings"]
+        XCTAssertTrue(settingsNavBar.waitForExistence(timeout: 5))
+
+        // Scope to the form to avoid accessibility tree scoping issues on iOS 18
+        let settingsForm = app.tables.firstMatch
 
         // Verify date filter section shows the picker
-        XCTAssertTrue(app.staticTexts["Date Filter"].exists, "Date Filter section should exist")
-        XCTAssertTrue(app.staticTexts["Date Range"].exists, "Date Range picker should exist")
+        XCTAssertTrue(settingsForm.staticTexts["Date Filter"].waitForExistence(timeout: 3), "Date Filter section should exist")
+        XCTAssertTrue(settingsForm.staticTexts["Date Range"].waitForExistence(timeout: 3), "Date Range picker should exist")
     }
 
     // MARK: - Photo Access: Denied

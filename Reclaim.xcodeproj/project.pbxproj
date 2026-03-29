@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0B2ACCAF2EC032AA004966FE /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 0B2ACCAE2EC032AA004966FE /* MSAL */; };
+		0B4693542F78671B00AAD94C /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B4693532F78671B00AAD94C /* StoreKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +33,7 @@
 		0B2ACC672EC02A5D004966FE /* Reclaim.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Reclaim.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B2ACC762EC02A61004966FE /* ReclaimTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReclaimTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B2ACC802EC02A61004966FE /* ReclaimUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReclaimUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B4693532F78671B00AAD94C /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -71,6 +73,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0B2ACCAF2EC032AA004966FE /* MSAL in Frameworks */,
+				0B4693542F78671B00AAD94C /* StoreKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,6 +101,7 @@
 				0B2ACC692EC02A5D004966FE /* Reclaim */,
 				0B2ACC792EC02A61004966FE /* ReclaimTests */,
 				0B2ACC832EC02A61004966FE /* ReclaimUITests */,
+				0B4693522F78671B00AAD94C /* Frameworks */,
 				0B2ACC682EC02A5D004966FE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -110,6 +114,14 @@
 				0B2ACC802EC02A61004966FE /* ReclaimUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0B4693522F78671B00AAD94C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0B4693532F78671B00AAD94C /* StoreKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -346,7 +358,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -411,7 +423,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -514,7 +526,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -536,7 +548,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -557,7 +569,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
@@ -578,7 +590,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 3T983VBXV5;
+				DEVELOPMENT_TEAM = U7MJ9CBUMD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;

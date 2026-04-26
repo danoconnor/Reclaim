@@ -201,68 +201,42 @@ class ComparisonService: ObservableObject {
         sensitivity: MatchingSensitivity
     ) async throws -> OneDriveFile? {
 
-        let photoFileName = photo.filename
-        var candidateNames = Set<String>([photoFileName])
-        candidateNames.formUnion(candidateOneDriveNames(for: photo))
-
-        var candidatesByName: [OneDriveFile] = []
-        var seenCandidateIds = Set<String>()
-        for name in candidateNames {
-            guard let matches = byName[name] else { continue }
-            for file in matches where seenCandidateIds.insert(file.id).inserted {
-                candidatesByName.append(file)
-            }
-        }
-
         switch sensitivity {
         case .low:
-            // Filename only
-            return candidatesByName.first
-            
+            return candidatesByName(for: photo, byName: byName).first
+
         case .medium:
-            // Filename + Size
-            for candidate in candidatesByName {
-                if candidate.size == photo.fileSize {
-                    return candidate
-                }
+            for candidate in candidatesByName(for: photo, byName: byName) {
+                if candidate.size == photo.fileSize { return candidate }
             }
             return nil
-            
+
         case .high:
-            // File Hash — compute on demand using the algorithm OneDrive used
-            // First check size to narrow down candidates
+            // First check size to narrow down candidates before doing any I/O
             if let candidates = bySize[photo.fileSize] {
                 let candidatesWithHash = candidates.filter { $0.hashValue != nil && $0.hashAlgorithm != nil }
                 if !candidatesWithHash.isEmpty {
-                    // Load photo data once for all candidate comparisons
-                    let data = try await photoLibraryService.getPhotoData(for: photo)
-                    
-                    // Group candidates by algorithm to avoid recomputing the same hash
+                    let neededAlgorithms = Set(candidatesWithHash.compactMap { $0.hashAlgorithm })
+
+                    // Stream photo data one chunk at a time to avoid loading the full file into memory
+                    var sha256Hasher: HashUtils.StreamingSHA256? = neededAlgorithms.contains(.sha256) ? HashUtils.StreamingSHA256() : nil
+                    var sha1Hasher: HashUtils.StreamingSHA1? = neededAlgorithms.contains(.sha1) ? HashUtils.StreamingSHA1() : nil
+                    var quickXorHasher: HashUtils.StreamingQuickXor? = neededAlgorithms.contains(.quickXor) ? HashUtils.StreamingQuickXor() : nil
+
+                    for try await chunk in photoLibraryService.streamPhotoData(for: photo) {
+                        sha256Hasher?.update(chunk)
+                        sha1Hasher?.update(chunk)
+                        quickXorHasher?.update(chunk)
+                    }
+
                     var hashCache: [HashAlgorithm: String] = [:]
-                    
+                    if var h = sha256Hasher { hashCache[.sha256] = h.finalize() }
+                    if var h = sha1Hasher { hashCache[.sha1] = h.finalize() }
+                    if var h = quickXorHasher { hashCache[.quickXor] = h.finalize() }
+
                     for candidate in candidatesWithHash {
-                        guard let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue else {
-                            continue
-                        }
-                        
-                        // Compute hash on demand, caching per algorithm
-                        let localHash: String
-                        if let cached = hashCache[algo] {
-                            localHash = cached
-                        } else {
-                            localHash = await Task.detached(priority: .userInitiated) {
-                                switch algo {
-                                case .sha256:
-                                    return HashUtils.sha256Hex(of: data)
-                                case .sha1:
-                                    return HashUtils.sha1Hex(of: data)
-                                case .quickXor:
-                                    return HashUtils.quickXorHash(of: data)
-                                }
-                            }.value
-                            hashCache[algo] = localHash
-                        }
-                        
+                        guard let algo = candidate.hashAlgorithm, let remoteHash = candidate.hashValue,
+                              let localHash = hashCache[algo] else { continue }
                         if localHash.caseInsensitiveCompare(remoteHash) == .orderedSame {
                             return candidate
                         }
@@ -273,14 +247,33 @@ class ComparisonService: ObservableObject {
         }
     }
 
+    // Shared formatter — DateFormatter is thread-safe on iOS 7+ per Apple docs.
+    private static let oneDriveDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.dateFormat = "yyyyMMdd_HHmmssSSS"
+        return f
+    }()
+
+    nonisolated private func candidatesByName(for photo: PhotoItem, byName: [String: [OneDriveFile]]) -> [OneDriveFile] {
+        var candidateNames = Set<String>([photo.filename])
+        candidateNames.formUnion(candidateOneDriveNames(for: photo))
+        var result: [OneDriveFile] = []
+        var seen = Set<String>()
+        for name in candidateNames {
+            guard let matches = byName[name] else { continue }
+            for file in matches where seen.insert(file.id).inserted {
+                result.append(file)
+            }
+        }
+        return result
+    }
+
     nonisolated private func candidateOneDriveNames(for photo: PhotoItem) -> Set<String> {
         guard let date = photo.creationDate ?? photo.modificationDate else { return [] }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyyMMdd_HHmmssSSS"
-        let dateString = formatter.string(from: date)
+        let dateString = Self.oneDriveDateFormatter.string(from: date)
 
         let fileExtension = (photo.filename as NSString).pathExtension
         let hasExtension = !fileExtension.isEmpty

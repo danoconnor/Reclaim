@@ -15,17 +15,10 @@ struct HashUtils {
     }
 
     static nonisolated func sha1Hex(of data: Data) -> String {
-        #if canImport(CryptoKit)
-        // CryptoKit doesn't provide SHA1, so we implement a lightweight pure Swift SHA1 here.
         return Sha1.computeHex(data: data)
-        #else
-        return Sha1.computeHex(data: data)
-        #endif
     }
 
     static nonisolated func quickXorHash(of data: Data) -> String {
-        // Faithful port of the OneDrive C# QuickXorHash algorithm.
-        // Produces a Base64-encoded 160-bit hash that matches OneDrive's quickXorHash.
         var hasher = QuickXorHasher()
         data.withUnsafeBytes { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
@@ -33,6 +26,127 @@ struct HashUtils {
         }
         let result = hasher.hashFinal()
         return result.base64EncodedString()
+    }
+
+    // MARK: - Streaming hashers
+
+    struct StreamingSHA256 {
+        private var hasher = SHA256()
+
+        mutating func update(_ data: Data) { hasher.update(data: data) }
+
+        mutating func finalize() -> String {
+            hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        }
+    }
+
+    struct StreamingQuickXor {
+        private var hasher = QuickXorHasher()
+
+        mutating func update(_ data: Data) {
+            data.withUnsafeBytes { buffer in
+                guard let base = buffer.baseAddress, buffer.count > 0 else { return }
+                hasher.hashCore(base.assumingMemoryBound(to: UInt8.self), count: buffer.count)
+            }
+        }
+
+        mutating func finalize() -> String {
+            hasher.hashFinal().base64EncodedString()
+        }
+    }
+
+    struct StreamingSHA1 {
+        private var h0: UInt32 = 0x67452301
+        private var h1: UInt32 = 0xEFCDAB89
+        private var h2: UInt32 = 0x98BADCFE
+        private var h3: UInt32 = 0x10325476
+        private var h4: UInt32 = 0xC3D2E1F0
+        // At most 63 bytes of a partially-filled block; never grows large.
+        private var partial = [UInt8]()
+        private var totalBytes: Int = 0
+        // Reused across processBlock calls to avoid a heap alloc per 64-byte block.
+        private var words = [UInt32](repeating: 0, count: 80)
+
+        init() { partial.reserveCapacity(64) }
+
+        mutating func update(_ data: Data) {
+            totalBytes += data.count
+            data.withUnsafeBytes { src in
+                guard let base = src.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+                process(base, count: src.count)
+            }
+        }
+
+        // Processes bytes directly from the pointer — no copying for complete blocks.
+        private mutating func process(_ bytes: UnsafePointer<UInt8>, count: Int) {
+            var offset = 0
+
+            if !partial.isEmpty {
+                let needed = 64 - partial.count
+                if count < needed {
+                    partial.append(contentsOf: UnsafeBufferPointer(start: bytes, count: count))
+                    return
+                }
+                partial.append(contentsOf: UnsafeBufferPointer(start: bytes, count: needed))
+                partial.withUnsafeBytes { processBlock($0.baseAddress!.assumingMemoryBound(to: UInt8.self)) }
+                partial.removeAll(keepingCapacity: true)
+                offset = needed
+            }
+
+            while offset + 64 <= count {
+                processBlock(bytes.advanced(by: offset))
+                offset += 64
+            }
+
+            if offset < count {
+                partial.append(contentsOf: UnsafeBufferPointer(start: bytes.advanced(by: offset), count: count - offset))
+            }
+        }
+
+        mutating func finalize() -> String {
+            let ml = UInt64(totalBytes * 8)
+            partial.append(0x80)
+            while partial.count % 64 != 56 { partial.append(0x00) }
+            var mlBigEndian = ml.bigEndian
+            withUnsafeBytes(of: &mlBigEndian) { partial.append(contentsOf: $0) }
+            partial.withUnsafeBytes { ptr in
+                let base = ptr.baseAddress!.assumingMemoryBound(to: UInt8.self)
+                var offset = 0
+                while offset + 64 <= partial.count {
+                    processBlock(base.advanced(by: offset))
+                    offset += 64
+                }
+            }
+            func wordToBytes(_ word: UInt32) -> [UInt8] {
+                [UInt8((word >> 24) & 0xff), UInt8((word >> 16) & 0xff), UInt8((word >> 8) & 0xff), UInt8(word & 0xff)]
+            }
+            let digest = [h0, h1, h2, h3, h4].flatMap(wordToBytes)
+            return digest.map { String(format: "%02x", $0) }.joined()
+        }
+
+        private mutating func processBlock(_ bytes: UnsafePointer<UInt8>) {
+            for i in 0..<16 {
+                let b = i * 4
+                words[i] = (UInt32(bytes[b]) << 24) | (UInt32(bytes[b+1]) << 16) | (UInt32(bytes[b+2]) << 8) | UInt32(bytes[b+3])
+            }
+            for i in 16..<80 {
+                let val = words[i-3] ^ words[i-8] ^ words[i-14] ^ words[i-16]
+                words[i] = (val << 1) | (val >> 31)
+            }
+            var a = h0, b = h1, c = h2, d = h3, e = h4
+            for i in 0..<80 {
+                var f: UInt32 = 0, k: UInt32 = 0
+                switch i {
+                case 0..<20: f = (b & c) | ((~b) & d); k = 0x5A827999
+                case 20..<40: f = b ^ c ^ d; k = 0x6ED9EBA1
+                case 40..<60: f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC
+                default: f = b ^ c ^ d; k = 0xCA62C1D6
+                }
+                let temp = ((a << 5) | (a >> 27)) &+ f &+ e &+ k &+ words[i]
+                e = d; d = c; c = (b << 30) | (b >> 2); b = a; a = temp
+            }
+            h0 = h0 &+ a; h1 = h1 &+ b; h2 = h2 &+ c; h3 = h3 &+ d; h4 = h4 &+ e
+        }
     }
 }
 

@@ -17,7 +17,7 @@ protocol PhotoLibraryServiceProtocol: AnyObject {
     var totalPhotoCount: Int { get }
     func requestAuthorization() async -> Bool
     @MainActor func fetchNonFavoritePhotos(startDate: Date?, endDate: Date?) async throws -> [PhotoItem]
-    func getPhotoData(for photoItem: PhotoItem) async throws -> Data
+    func streamPhotoData(for photoItem: PhotoItem) -> AsyncThrowingStream<Data, Error>
     @MainActor func deletePhotos(_ photoItems: [PhotoItem]) async throws
 }
 

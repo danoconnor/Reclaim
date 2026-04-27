@@ -61,30 +61,35 @@ struct MainView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Status Section
-                statusSection
-                
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Status Section
+                        statusSection
+
+                        Divider()
+
+                        // Date Filter Indicator
+                        if isDateFilterActive {
+                            dateFilterIndicator
+                            Divider()
+                        }
+
+                        // Statistics Section
+                        if !comparisonService.syncStatuses.isEmpty || comparisonService.currentPhase == .fetchingData {
+                            statisticsSection
+                        }
+                    }
+                    .padding()
+                }
+
                 Divider()
-                
-                // Date Filter Indicator
-                if isDateFilterActive {
-                    dateFilterIndicator
-                    Divider()
-                }
-                
-                // Statistics Section
-                if !comparisonService.syncStatuses.isEmpty || comparisonService.currentPhase == .fetchingData {
-                    statisticsSection
-                    Divider()
-                }
-                
-                // Action Buttons
+
+                // Action Buttons — kept outside the ScrollView so they remain
+                // on-screen regardless of how much content is above.
                 actionButtons
-                
-                Spacer()
+                    .padding()
             }
-            .padding()
             .navigationTitle("Reclaim")
             //.navigationSubtitle("Get your storage back")
             .toolbar {

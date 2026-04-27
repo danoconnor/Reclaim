@@ -181,60 +181,38 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
     }
     
     // MARK: - Get Photo Data
-    
-    nonisolated func getPhotoData(for photoItem: PhotoItem) async throws -> Data {
-        guard let asset = photoItem.asset else {
-            throw PhotoLibraryError.assetNotFound
-        }
-        
-        switch asset.mediaType {
-        case .video:
-            return try await getVideoData(for: asset)
-        default:
-            return try await getImageData(for: asset)
-        }
-    }
-    
-    private nonisolated func getImageData(for asset: PHAsset) async throws -> Data {
-        let options = PHImageRequestOptions()
-        options.version = .original
-        options.isSynchronous = false
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
-                if let error = info?[PHImageErrorKey] as? Error {
-                    continuation.resume(throwing: error)
-                } else if let data = data {
-                    continuation.resume(returning: data)
-                } else {
-                    continuation.resume(throwing: PhotoLibraryError.failedToFetchData)
-                }
+
+    nonisolated func streamPhotoData(for photoItem: PhotoItem) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            guard let asset = photoItem.asset else {
+                continuation.finish(throwing: PhotoLibraryError.assetNotFound)
+                return
             }
-        }
-    }
-    
-    private nonisolated func getVideoData(for asset: PHAsset) async throws -> Data {
-        let resources = PHAssetResource.assetResources(for: asset)
-        guard let videoResource = resources.first(where: { $0.type == .video || $0.type == .fullSizeVideo }) ?? resources.first else {
-            throw PhotoLibraryError.failedToFetchData
-        }
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            var videoData = Data()
+
+            let resources = PHAssetResource.assetResources(for: asset)
+            // For videos, prefer the video resource explicitly to avoid accidentally
+            // picking the image component of a Live Photo. For images, prefer .photo
+            // for the same reason (Live Photos also have a .pairedVideo resource).
+            let resource: PHAssetResource?
+            if asset.mediaType == .video {
+                resource = resources.first(where: { $0.type == .video || $0.type == .fullSizeVideo }) ?? resources.first
+            } else {
+                resource = resources.first(where: { $0.type == .photo || $0.type == .fullSizePhoto }) ?? resources.first
+            }
+            guard let resource else {
+                continuation.finish(throwing: PhotoLibraryError.failedToFetchData)
+                return
+            }
+
             let options = PHAssetResourceRequestOptions()
             options.isNetworkAccessAllowed = true
-            
-            PHAssetResourceManager.default().requestData(for: videoResource, options: options, dataReceivedHandler: { chunk in
-                videoData.append(chunk)
-            }, completionHandler: { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: videoData)
-                }
-            })
+
+            PHAssetResourceManager.default().requestData(
+                for: resource,
+                options: options,
+                dataReceivedHandler: { chunk in continuation.yield(chunk) },
+                completionHandler: { error in continuation.finish(throwing: error) }
+            )
         }
     }
     

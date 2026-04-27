@@ -64,8 +64,12 @@ class MockPhotoLibraryService: PhotoLibraryServiceProtocol {
         return self.fetchNonFavoritePhotosResult
     }
     
-    func getPhotoData(for photoItem: PhotoItem) async throws -> Data {
-        return self.getPhotoDataResult
+    func streamPhotoData(for photoItem: PhotoItem) -> AsyncThrowingStream<Data, Error> {
+        let data = self.getPhotoDataResult
+        return AsyncThrowingStream { continuation in
+            continuation.yield(data)
+            continuation.finish()
+        }
     }
     
     func deletePhotos(_ photoItems: [PhotoItem]) async throws {

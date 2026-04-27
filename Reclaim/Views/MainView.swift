@@ -61,30 +61,30 @@ struct MainView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Status Section
-                statusSection
-                
-                Divider()
-                
-                // Date Filter Indicator
-                if isDateFilterActive {
-                    dateFilterIndicator
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Status Section
+                    statusSection
+
                     Divider()
+
+                    // Date Filter Indicator
+                    if isDateFilterActive {
+                        dateFilterIndicator
+                        Divider()
+                    }
+
+                    // Statistics Section
+                    if !comparisonService.syncStatuses.isEmpty || comparisonService.currentPhase == .fetchingData {
+                        statisticsSection
+                        Divider()
+                    }
+
+                    // Action Buttons
+                    actionButtons
                 }
-                
-                // Statistics Section
-                if !comparisonService.syncStatuses.isEmpty || comparisonService.currentPhase == .fetchingData {
-                    statisticsSection
-                    Divider()
-                }
-                
-                // Action Buttons
-                actionButtons
-                
-                Spacer()
+                .padding()
             }
-            .padding()
             .navigationTitle("Reclaim")
             //.navigationSubtitle("Get your storage back")
             .toolbar {

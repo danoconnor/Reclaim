@@ -190,7 +190,16 @@ class PhotoLibraryService: ObservableObject, PhotoLibraryServiceProtocol {
             }
 
             let resources = PHAssetResource.assetResources(for: asset)
-            guard let resource = resources.first else {
+            // For videos, prefer the video resource explicitly to avoid accidentally
+            // picking the image component of a Live Photo. For images, prefer .photo
+            // for the same reason (Live Photos also have a .pairedVideo resource).
+            let resource: PHAssetResource?
+            if asset.mediaType == .video {
+                resource = resources.first(where: { $0.type == .video || $0.type == .fullSizeVideo }) ?? resources.first
+            } else {
+                resource = resources.first(where: { $0.type == .photo || $0.type == .fullSizePhoto }) ?? resources.first
+            }
+            guard let resource else {
                 continuation.finish(throwing: PhotoLibraryError.failedToFetchData)
                 return
             }

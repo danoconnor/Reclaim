@@ -15,10 +15,13 @@ struct HashUtils {
     }
 
     static nonisolated func sha1Hex(of data: Data) -> String {
+        // CryptoKit doesn't provide SHA1, so we use a pure Swift implementation.
         return Sha1.computeHex(data: data)
     }
 
     static nonisolated func quickXorHash(of data: Data) -> String {
+        // Faithful port of the OneDrive C# QuickXorHash algorithm.
+        // Produces a Base64-encoded 160-bit hash that matches OneDrive's quickXorHash.
         var hasher = QuickXorHasher()
         data.withUnsafeBytes { buffer in
             guard let baseAddress = buffer.baseAddress else { return }
